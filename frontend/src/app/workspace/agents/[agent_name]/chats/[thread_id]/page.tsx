@@ -1,7 +1,7 @@
 "use client";
 
 import { BotIcon, PlusSquare } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
@@ -49,6 +49,8 @@ import {
 import { isHiddenFromUIMessage } from "@/core/messages/utils";
 import { useModels } from "@/core/models/hooks";
 import { useNotification } from "@/core/notification/hooks";
+import { projectChatPath } from "@/core/projects/chat-path";
+import { useProjectThreadCreation } from "@/core/projects/use-project-thread-creation";
 import { useLocalSettings, useThreadSettings } from "@/core/settings";
 import { resolveThreadContext } from "@/core/settings/store";
 import {
@@ -60,7 +62,11 @@ import {
   selectContextUsage,
   threadTokenUsageToTokenUsage,
 } from "@/core/threads/token-usage";
-import { textOfMessage } from "@/core/threads/utils";
+import {
+  pathOfThread,
+  projectIdOfThread,
+  textOfMessage,
+} from "@/core/threads/utils";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +75,7 @@ export default function AgentChatPage() {
   const { user } = useAuth();
   const canStopStreaming = hasPermission(user, PERMISSIONS.RUNS_CANCEL);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const { agent_name } = useParams<{
     agent_name: string;
@@ -78,6 +85,12 @@ export default function AgentChatPage() {
 
   const { threadId, setThreadId, isNewThread, setIsNewThread, isMock } =
     useThreadChat();
+  const projectParam = isNewThread ? searchParams.get("project") : null;
+  const ensureProjectThread = useProjectThreadCreation(
+    threadId,
+    projectParam,
+    agent_name,
+  );
   // `isNewThread` gates history/token-usage fetches until the backend creates
   // the thread. `isWelcomeMode` controls only the centered welcome layout, so
   // it can flip immediately on submit without triggering eager history loads.
@@ -94,6 +107,9 @@ export default function AgentChatPage() {
     enabled: !isNewThread && !isMock,
     isMock,
   });
+  const affiliatedProjectId =
+    projectParam ??
+    (threadMetadata.data ? projectIdOfThread(threadMetadata.data) : null);
   const backendTokenUsage = threadTokenUsageToTokenUsage(threadTokenUsage.data);
   const contextUsage = selectContextUsage(threadTokenUsage.data);
 
@@ -126,7 +142,7 @@ export default function AgentChatPage() {
       history.replaceState(
         null,
         "",
-        `/workspace/agents/${agent_name}/chats/${createdThreadId}`,
+        pathOfThread(createdThreadId, { agent_name }),
       );
       setThreadId(createdThreadId);
       setIsNewThread(false);
@@ -178,7 +194,8 @@ export default function AgentChatPage() {
   ]);
 
   const handleSubmit = useCallback(
-    (message: PromptInputMessage, options?: InputBoxSubmitOptions) => {
+    async (message: PromptInputMessage, options?: InputBoxSubmitOptions) => {
+      await ensureProjectThread();
       const sendPromise = sendMessage(
         threadId,
         message,
@@ -190,7 +207,7 @@ export default function AgentChatPage() {
       }
       void sendPromise;
     },
-    [sendMessage, threadId, agent_name],
+    [sendMessage, threadId, agent_name, ensureProjectThread],
   );
 
   const handleSubmitHumanInput = useCallback(
@@ -314,7 +331,11 @@ export default function AgentChatPage() {
                     size="sm"
                     variant="secondary"
                     onClick={() => {
-                      router.push(`/workspace/agents/${agent_name}/chats/new`);
+                      router.push(
+                        affiliatedProjectId
+                          ? projectChatPath(affiliatedProjectId, agent_name)
+                          : pathOfThread("new", { agent_name }),
+                      );
                     }}
                   >
                     <PlusSquare />
@@ -434,7 +455,13 @@ export default function AgentChatPage() {
                     )}
                     isWelcomeMode={isWelcomeMode}
                     threadId={threadId}
-                    draftThreadId={isNewThread ? "new" : threadId}
+                    draftThreadId={
+                      isNewThread
+                        ? projectParam
+                          ? `new:${projectParam}`
+                          : "new"
+                        : threadId
+                    }
                     draftAgentName={agent_name}
                     agentSkillNames={agent?.skills}
                     agentSkillsLoading={agentSkillsLoading}
@@ -466,6 +493,7 @@ export default function AgentChatPage() {
                       else setSettings("context", context);
                     }}
                     onGoalChange={setLocalGoal}
+                    onPrepareThread={ensureProjectThread}
                     onSubmit={handleSubmit}
                     onStop={handleStop}
                     canStopStreaming={canStopStreaming}

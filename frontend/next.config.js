@@ -31,6 +31,17 @@ const config = {
     root: fileURLToPath(new URL(".", import.meta.url)),
   },
   devIndicators: false,
+  // Opt-in for memory-limited DEV containers; production builds are unchanged.
+  ...(process.env.NODE_ENV === "development" &&
+  process.env.DEER_FLOW_DEV_LOW_MEMORY === "1"
+    ? {
+        experimental: { webpackMemoryOptimizations: true },
+        webpack: (webpackConfig) => {
+          webpackConfig.cache = false;
+          return webpackConfig;
+        },
+      }
+    : {}),
   allowedDevOrigins: getAllowedDevOrigins(),
   async rewrites() {
     const rewrites = [];

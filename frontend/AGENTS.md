@@ -190,3 +190,5 @@ mutation permissions, and cache ownership remain in the existing hooks. Skill di
 metadata; runtime names and full descriptions remain unchanged. Public, custom,
 integration, and legacy sources must stay distinct. Community currently offers
 archive import, not a remote marketplace. Screenshot E2E fixtures are demo data.
+
+`DEER_FLOW_DEV_LOW_MEMORY=1` opts memory-limited DEV containers into Webpack memory optimizations and disables the compiler cache. The flag is gated by `NODE_ENV=development`; production compilation stays unchanged. Keep lint/type checks separate from first-page compilation in constrained containers.

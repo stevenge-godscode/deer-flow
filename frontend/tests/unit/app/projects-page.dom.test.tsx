@@ -41,6 +41,10 @@ rs.mock("next/link", () => {
   return { default: MockLink };
 });
 
+rs.mock("@/components/workspace/projects/project-agent-chat-menu", () => ({
+  ProjectAgentChatMenu: () => <span />,
+}));
+
 rs.mock("@/core/static-mode", () => ({
   isStaticWebsiteOnly: () => false,
 }));

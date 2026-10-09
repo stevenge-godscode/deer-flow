@@ -1,6 +1,5 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
 import { Folder } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -50,12 +49,11 @@ import { isHiddenFromUIMessage } from "@/core/messages/utils";
 import { useModels } from "@/core/models/hooks";
 import { useNotification } from "@/core/notification/hooks";
 import { useProject } from "@/core/projects";
+import { useProjectThreadCreation } from "@/core/projects/use-project-thread-creation";
 import { useLocalSettings, useThreadSettings } from "@/core/settings";
 import { resolveThreadContext } from "@/core/settings/store";
-import { createThread } from "@/core/threads/api";
 import {
   useBranchThread,
-  INFINITE_THREADS_QUERY_KEY_PREFIX,
   useThreadMetadata,
   useThreadStream,
   useThreadTokenUsage,
@@ -95,7 +93,6 @@ export default function ChatPage() {
   // the moment the user submits so the UI animates immediately, even though
   // `isNewThread` stays true until the backend actually creates the thread.
   const [isWelcomeMode, setIsWelcomeMode] = useState(isNewThread);
-  const queryClient = useQueryClient();
   const [settings, setSettings] = useThreadSettings(threadId);
   const [localSettings, setLocalSettings] = useLocalSettings();
   const { enabled: browserControlEnabled } = useBrowserControlEnabled();
@@ -200,67 +197,12 @@ export default function ChatPage() {
     threadMetadata.isLoading,
   ]);
 
-  // Born assigned: pre-create the thread row with its project so the sidebar
-  // lists it under the project immediately. Idempotent server-side on
-  // `thread_id`, so retrying the same first message (same `threadId` while
-  // `isNewThread`) reuses the existing row instead of double-creating. This
-  // is the sole membership channel — run requests never carry the project
-  // key.
-  //
-  // Also runs before InputBox issues a `/goal <condition>` PUT (via
-  // `onPrepareThread`): the goal endpoint materializes a missing thread row
-  // itself, and an unassigned row would make this later idempotent create a
-  // membership no-op.
-  const ensureProjectThread = useCallback(async () => {
-    if (!projectParam) {
-      return;
-    }
-    try {
-      await createThread(threadId, projectParam);
-      void queryClient.invalidateQueries({
-        queryKey: INFINITE_THREADS_QUERY_KEY_PREFIX,
-      });
-    } catch (error) {
-      // Any failure (e.g. the project was deleted/archived between page load
-      // and submit): do NOT submit unassigned. Reject so PromptInput keeps
-      // the composer's text for a retry; the send in-flight guard is never
-      // engaged on this path, so retrying works immediately.
-      toast.error(t.projects.projectUnavailable);
-      throw error;
-    }
-  }, [threadId, projectParam, queryClient, t]);
-
-  // Submission fence. The cleanup runs when `threadId` changes (conversation
-  // switch on a persisted page — sidebar navigation keeps this component
-  // mounted), when the new-chat project scope changes (the sidebar "New
-  // chat" link can drop `?project=` without a pathname change), or on
-  // unmount. handleSubmit awaits the project pre-create before sending, and
-  // a navigation during that await must not let the stale continuation
-  // start a run for the abandoned conversation: its onStart would rewrite
-  // the newly selected conversation's URL and its completion would clear
-  // the new composer.
-  const submissionEpochRef = useRef(0);
-  useEffect(() => {
-    return () => {
-      submissionEpochRef.current += 1;
-    };
-  }, [threadId, projectParam]);
-
+  const ensureProjectThread = useProjectThreadCreation(threadId, projectParam);
   const handleSubmit = useCallback(
     async (message: PromptInputMessage, options?: InputBoxSubmitOptions) => {
-      const submissionEpoch = submissionEpochRef.current;
       await ensureProjectThread();
-      // Conversation switched (or the page unmounted) while the project
-      // pre-create was pending: drop the submission. Reject silently — the
-      // user has already moved on, so a toast would land on the new
-      // conversation — and PromptInput keeps the current composer text.
-      if (submissionEpochRef.current !== submissionEpoch) {
-        throw new Error("thread-submission-stale");
-      }
       const sendPromise = sendMessage(threadId, message, undefined, options);
-      if (message.files.length > 0) {
-        return sendPromise;
-      }
+      if (message.files.length > 0) return sendPromise;
       void sendPromise;
     },
     [sendMessage, threadId, ensureProjectThread],
@@ -526,7 +468,13 @@ export default function ChatPage() {
                       )}
                       isWelcomeMode={isWelcomeMode}
                       threadId={threadId}
-                      draftThreadId={isNewThread ? "new" : threadId}
+                      draftThreadId={
+                        isNewThread
+                          ? projectParam
+                            ? `new:${projectParam}`
+                            : "new"
+                          : threadId
+                      }
                       autoFocus={isWelcomeMode}
                       status={
                         thread.error
