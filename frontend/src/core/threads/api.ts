@@ -137,6 +137,7 @@ export async function patchThreadMetadata(
 export async function createThread(
   threadId: string,
   projectId?: string,
+  agentName?: string,
 ): Promise<AgentThread> {
   const response = await fetchWithAuth(`${getBackendBaseURL()}/api/threads`, {
     method: "POST",
@@ -146,6 +147,7 @@ export async function createThread(
     body: JSON.stringify({
       thread_id: threadId,
       ...(projectId ? { project_id: projectId } : {}),
+      ...(agentName ? { metadata: { agent_name: agentName } } : {}),
     }),
   });
 

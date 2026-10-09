@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { ProjectAgentChatMenu } from "@/components/workspace/projects/project-agent-chat-menu";
 import { ProjectDocumentsSection } from "@/components/workspace/projects/project-documents-section";
 import { ProjectThreadsSection } from "@/components/workspace/projects/project-threads-section";
 import {
@@ -51,16 +52,13 @@ import {
   useRestoreProject,
   type Project,
 } from "@/core/projects";
+import { projectChatPath } from "@/core/projects/chat-path";
 import { isStaticWebsiteOnly } from "@/core/static-mode";
 import { isIMEComposing } from "@/lib/ime";
 import { cn } from "@/lib/utils";
 
 function utf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).length;
-}
-
-function newProjectChatPath(projectId: string): string {
-  return `/workspace/chats/new?project=${encodeURIComponent(projectId)}`;
 }
 
 export default function ProjectPage() {
@@ -187,12 +185,15 @@ function ProjectHeader({ project }: { project: Project }) {
         <Badge variant="secondary">{t.projects.archived}</Badge>
       )}
       {project.status !== "archived" && (
-        <Button asChild>
-          <Link href={newProjectChatPath(project.id)}>
-            <MessageSquarePlus />
-            {t.projects.newChat}
-          </Link>
-        </Button>
+        <>
+          <Button asChild>
+            <Link href={projectChatPath(project.id)}>
+              <MessageSquarePlus />
+              {t.projects.newChat}
+            </Link>
+          </Button>
+          <ProjectAgentChatMenu projectId={project.id} />
+        </>
       )}
     </header>
   );

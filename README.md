@@ -1949,3 +1949,9 @@ Your unwavering commitment and expertise have been the driving force behind Deer
 ## Star History
 
 [![Star History Chart](https://star-history.dera.page/svg?repos=bytedance/deer-flow&type=Date)](https://star-history.dera.page/#bytedance/deer-flow&Date)
+
+### Native project agent chats
+
+Within a project, use the Agents menu beside New chat to start a specialist conversation. New agent conversations keep their project membership from the first message; the agent chat New chat button preserves that project. An unavailable project blocks submission rather than creating an unassigned conversation.
+
+Memory-limited DEV containers can set `DEER_FLOW_DEV_LOW_MEMORY=1` to reduce Webpack memory use at the cost of recompilation speed. This setting does not change production builds.
