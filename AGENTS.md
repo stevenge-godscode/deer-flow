@@ -242,3 +242,7 @@ These apply repo-wide; module guides own the module-specific detail.
   `scripts/verify_versions.sh <ver>` to catch drift early. See [RELEASING.md](RELEASING.md).
 - **Don't edit `CLAUDE.md`** — it only contains `@AGENTS.md`. All agent guidance changes
   belong here in `AGENTS.md`; `CLAUDE.md` is a thin import shim.
+
+## 项目账号与凭据治理
+
+注册、授权或使用项目账号前，遵循[Bitwarden 分类保管与最小权限说明](docs/security/bitwarden-account-governance.md)。私人 vault 不向自动化开放；仅使用用户确认的项目/环境 collection 及受限身份。秘密由用户本人安全录入，注册与持久权限变更须具体确认。
