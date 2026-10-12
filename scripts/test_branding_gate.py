@@ -38,6 +38,12 @@ class BrandGateTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(len(result["failures"]), 2)
 
+    def test_generated_tui_messages_cannot_reintroduce_upstream_brand(self):
+        p = self.root / "backend/browser_tui/server.py"
+        p.parent.mkdir(parents=True)
+        p.write_text('message = "Return to DeerFlow"', encoding="utf-8")
+        self.assertFalse(module.check(self.root)["passed"])
+
     def test_upstream_marketing_cannot_be_reintroduced(self):
         (self.root / "frontend/src/app/page.tsx").write_text('import {Header} from "@/components/landing/header";', encoding="utf-8")
         self.assertFalse(module.check(self.root)["passed"])

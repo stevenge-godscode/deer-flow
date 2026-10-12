@@ -28,6 +28,12 @@ def check(root):
                 line = line.replace(marker, "INTERNAL_PROTOCOL_MARKER")
             if re.search(r"DeerFlow|deerflow\.tech|github\.com/bytedance/deer-flow|/images/deer\.svg", line):
                 failures.append(f"{relative}:{number}: upstream brand in business surface")
+    for path in (root / "backend/browser_tui").glob("*.py"):
+        if path.name.startswith("test_"):
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and re.search(r"DeerFlow|deerflow\.tech|github\.com/bytedance/deer-flow", node.value):
+                failures.append(f"{path.relative_to(root)}:{node.lineno}: upstream brand in generated TUI surface")
     active_about = (root / "frontend/src/components/workspace/settings/about-settings-page.tsx").read_text(encoding="utf-8")
     home = (root / "frontend/src/app/page.tsx").read_text(encoding="utf-8")
     if "about-content" in active_about or "components/landing" in home:

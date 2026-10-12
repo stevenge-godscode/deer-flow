@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from .branding import brand_header, brand_rendered_text, load_brand
+from .branding import brand_header, brand_rendered_text, brand_template, load_brand
 
 
 class BrandTests(unittest.TestCase):
@@ -14,6 +14,18 @@ class BrandTests(unittest.TestCase):
         self.assertEqual(brand["company"], "神典信息")
         self.assertIn("Genesis", brand_header(brand, "model", "thread").plain)
         self.assertNotIn("DeerFlow", brand_header(brand, "model", "thread").plain)
+
+    def test_renderer_document_with_body_attributes_and_safe_metadata(self):
+        brand = load_brand()
+        brand["title"] = 'Genesis & "DEV"'
+        source = '<html><head><title>old</title></head><body data-pingurl="">native renderer</body></html>'
+        result = brand_template(source, brand)
+        self.assertIn('<body data-pingurl=""><img src="/brand/logo"', result)
+        self.assertIn("Genesis &amp; &quot;DEV&quot;", result)
+        self.assertIn('rel="icon" href="/brand/logo"', result)
+        self.assertEqual(result.count("<title>"), 1)
+        with self.assertRaises(ValueError):
+            brand_template("<main>unexpected upstream template</main>", brand)
 
     def test_invalid_runtime_theme_rejected_before_render(self):
         brand = load_brand()

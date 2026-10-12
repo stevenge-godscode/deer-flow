@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -75,3 +76,15 @@ def brand_rendered_text(text, brand):
         spans.append(Span(span.start, span.end, mapped))
     result.spans = spans
     return result
+
+
+def brand_template(template, brand):
+    """Adapt the real renderer template, including attribute-bearing body tags."""
+    template = re.sub(r"<title\b[^>]*>.*?</title>", "", template, flags=re.I | re.S)
+    header = "<title>" + html.escape(brand["title"]) + '</title><link rel="icon" href="/brand/logo"><style>html,body{background:' + brand["dark"]["background"] + "}</style>"
+    template, heads = re.subn(r"(<head\b[^>]*>)", lambda m: m.group(1) + header, template, count=1, flags=re.I)
+    logo = '<img src="/brand/logo" alt="' + html.escape(brand["company"] + " Logo", quote=True) + '" style="position:fixed;right:12px;top:4px;width:22px;height:22px;z-index:2;border-radius:4px">'
+    template, bodies = re.subn(r"(<body\b[^>]*>)", lambda m: m.group(1) + logo, template, count=1, flags=re.I)
+    if heads != 1 or bodies != 1:
+        raise ValueError("Unexpected renderer document contract")
+    return template

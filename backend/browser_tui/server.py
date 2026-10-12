@@ -15,7 +15,7 @@ from aiohttp import WSMsgType, web
 from textual_serve.app_service import AppService
 from textual_serve.server import Server
 
-from .branding import load_brand
+from .branding import brand_template, load_brand
 from .client import AccessDenied, GatewayClient, session_headers
 
 
@@ -110,7 +110,7 @@ class BrowserServer(Server):
         except (AccessDenied, ValueError, TypeError):
             raise web.HTTPForbidden(text="请登录并确认你有权访问当前会话。") from None
         except Exception:
-            raise web.HTTPServiceUnavailable(text="无法确认会话，请返回 DeerFlow 检查。") from None
+            raise web.HTTPServiceUnavailable(text="无法确认会话，请返回工作台检查。") from None
         return headers, binding
 
     async def _make_app(self):
@@ -121,7 +121,7 @@ class BrowserServer(Server):
             '    <link\n      rel="stylesheet"\n      href="https://fonts.googleapis.com/css?family=Roboto%20Mono"\n    />',
             "",
         )
-        template = template.replace("<body>", '<body><img src="/brand/logo" alt="Genesis Logo" style="position:fixed;right:12px;top:4px;width:22px;height:22px;z-index:2;border-radius:4px">')
+        template = brand_template(template, self.brand)
         template = template.replace(
             "</body>",
             """<script>
