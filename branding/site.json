@@ -1,5 +1,5 @@
 {
-  "version": "genesis-brand-20261012.2",
+  "version": "genesis-brand-20261012.3",
   "name": "Genesis",
   "company": "Genesis",
   "title": "Genesis 智能体工作台",
@@ -26,5 +26,11 @@
     "primary": "#82b6ff",
     "primaryForeground": "#08090b",
     "border": "#344258"
+  },
+  "logo": {
+    "size": 40,
+    "compactSize": 32,
+    "wordmarkSize": 28,
+    "terminalSize": 36
   }
 }

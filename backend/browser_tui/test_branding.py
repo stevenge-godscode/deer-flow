@@ -28,6 +28,17 @@ class BrandTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             brand_template("<main>unexpected upstream template</main>", brand)
 
+    def test_logo_dimensions_reject_text_or_unbounded_sizes(self):
+        brand = load_brand()
+        for size in [0, 100, "36px; color:red", True]:
+            brand["logo"]["terminalSize"] = size
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "brand.json"
+                path.write_text(json.dumps(brand), encoding="utf-8")
+                with patch.dict(os.environ, {"GENESIS_BRAND_CONFIG": str(path)}):
+                    with self.assertRaises(ValueError):
+                        load_brand()
+
     def test_invalid_runtime_theme_rejected_before_render(self):
         brand = load_brand()
         brand["dark"]["primary"] = "red; malicious"

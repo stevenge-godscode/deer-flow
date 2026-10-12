@@ -29,3 +29,5 @@ DEV business entry: https://agents.dev.godscode.com.cn (same application/client 
 CI source workflow runs the same brand gate and requires GENESIS_CI_HTTP_PROXY / GENESIS_CI_HTTPS_PROXY / GENESIS_CI_NO_PROXY repository variables before checkout/tool downloads. This fork currently has no registered self-hosted runners; manual DEV gates are actual evidence, not a claim that GitHub-hosted CI or its proxy connectivity has passed. Do not silently fall back to direct source/download requests.
 
 2026-10-12 display decision: use Genesis only in active web, TUI and app-login chrome. Official source-company provenance is retained internally. Shared web logo is 40px (32px in compact navigation); terminal renderer logo is 36px.
+
+The logo object contains bounded numeric icon, compact icon, wordmark and terminal sizes. The shared BrandLogo uses one centered row, the official system font and a 40px icon / 28px wordmark default. Existing configs without logo sizes use compatible defaults; no arbitrary CSS is admitted. Icon/wordmark balance can be changed by a new config revision, without another frontend rebuild.

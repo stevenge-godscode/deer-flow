@@ -13,6 +13,7 @@ export function BrandLogo({
   className?: string;
 }) {
   const brand = useBrand();
+  const size = compact ? brand.logo.compactSize : brand.logo.size;
   return (
     <span
       className={cn(
@@ -20,14 +21,16 @@ export function BrandLogo({
         className,
       )}
       aria-label={brand.name}
+      style={{ fontSize: brand.logo.wordmarkSize, lineHeight: 1 }}
     >
       <Image
         src="/brand/logo"
         alt={`${brand.company} Logo`}
-        width={compact ? 32 : 40}
-        height={compact ? 32 : 40}
+        width={size}
+        height={size}
         unoptimized
-        className={cn("rounded", compact ? "size-8" : "size-10")}
+        className="rounded"
+        style={{ width: size, height: size }}
       />
       {!compact && <span>{brand.name}</span>}
     </span>

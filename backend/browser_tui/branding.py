@@ -19,8 +19,12 @@ def load_brand():
     path = Path(os.environ.get("GENESIS_BRAND_CONFIG", Path(__file__).resolve().parents[2] / "branding/site.json"))
     brand = json.loads(path.read_text(encoding="utf-8"))
     fields = {"version", "name", "company", "title", "description", "website", "docs", "support", "light", "dark"}
-    if set(brand) != fields:
+    if set(brand) not in [fields, fields | {"logo"}]:
         raise ValueError("Invalid branding fields")
+    logo = brand.setdefault("logo", {"size": 40, "compactSize": 32, "wordmarkSize": 28, "terminalSize": 36})
+    ranges = {"size": (20, 64), "compactSize": (20, 48), "wordmarkSize": (18, 36), "terminalSize": (20, 64)}
+    if not isinstance(logo, dict) or set(logo) != set(ranges) or any(type(logo[k]) is not int or not a <= logo[k] <= b for k, (a, b) in ranges.items()):
+        raise ValueError("Invalid logo dimensions")
     for key in fields - {"light", "dark"}:
         value = brand[key]
         if not isinstance(value, str) or not 1 <= len(value) <= 120 or re.search(r"[<>\x00-\x1f]", value):
@@ -88,7 +92,15 @@ def brand_template(template, brand):
     template, heads = re.subn(r"(<head\b[^>]*>)", lambda m: m.group(1) + header, template, count=1, flags=re.I)
     theme = "<style>html,body{background:" + brand["dark"]["background"] + "}</style>"
     template, head_ends = re.subn(r"(</head\s*>)", lambda m: theme + m.group(1), template, count=1, flags=re.I)
-    logo = '<img src="/brand/logo" alt="' + html.escape(brand["company"] + " Logo", quote=True) + '" style="position:fixed;right:12px;top:4px;width:36px;height:36px;z-index:2;border-radius:4px">'
+    logo = (
+        '<img src="/brand/logo" alt="'
+        + html.escape(brand["company"] + " Logo", quote=True)
+        + '" style="position:fixed;right:12px;top:4px;width:'
+        + str(brand["logo"]["terminalSize"])
+        + "px;height:"
+        + str(brand["logo"]["terminalSize"])
+        + 'px;z-index:2;border-radius:4px">'
+    )
     template, bodies = re.subn(r"(<body\b[^>]*>)", lambda m: m.group(1) + logo, template, count=1, flags=re.I)
     if heads != 1 or head_ends != 1 or bodies != 1:
         raise ValueError("Unexpected renderer document contract")

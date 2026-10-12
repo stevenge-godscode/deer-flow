@@ -30,6 +30,15 @@ const https = z
       !new URL(value).username &&
       !new URL(value).password,
   );
+const logo = z
+  .object({
+    size: z.number().int().min(20).max(64),
+    compactSize: z.number().int().min(20).max(48),
+    wordmarkSize: z.number().int().min(18).max(36),
+    terminalSize: z.number().int().min(20).max(64),
+  })
+  .strict()
+  .default({ size: 40, compactSize: 32, wordmarkSize: 28, terminalSize: 36 });
 export const brandSchema = z
   .object({
     version: text,
@@ -40,6 +49,7 @@ export const brandSchema = z
     website: https,
     docs: https,
     support: z.string().regex(/^mailto:[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$/),
+    logo,
     light: palette,
     dark: palette,
   })

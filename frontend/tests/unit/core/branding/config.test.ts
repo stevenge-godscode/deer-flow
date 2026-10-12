@@ -39,6 +39,24 @@ describe("runtime branding boundary", () => {
       brandSchema.parse({ ...defaultBrand, website: "javascript:alert(1)" }),
     ).toThrow();
   });
+  it("uses bounded numeric logo and wordmark sizes", () => {
+    expect(defaultBrand.logo).toEqual({
+      size: 40,
+      compactSize: 32,
+      wordmarkSize: 28,
+      terminalSize: 36,
+    });
+    for (const wordmarkSize of [0, 100, "28px; color:red"]) {
+      expect(() =>
+        brandSchema.parse({
+          ...defaultBrand,
+          logo: { ...defaultBrand.logo, wordmarkSize },
+        }),
+      ).toThrow();
+    }
+    const { logo, ...legacy } = defaultBrand;
+    expect(brandSchema.parse(legacy).logo).toEqual(logo);
+  });
   it("uses the same configured palette for shared controls in both themes", () => {
     const css = brandCSS(defaultBrand);
     expect(css).toContain(`--primary:${defaultBrand.light.primary}`);
