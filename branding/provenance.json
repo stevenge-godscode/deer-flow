@@ -1,0 +1,18 @@
+{
+  "logo": {
+    "url": "https://www.godscode.com.cn/src/assets/images/logo_256.png",
+    "sha256": "a136301e91459f61ff2f42b3b044dc537b3163fa2a7b3699d34a3d5edae19d85"
+  },
+  "theme_sources": [
+    {
+      "url": "https://www.godscode.com.cn/homepage-base.css",
+      "sha256": "e982c1cffdebb5fd096f4355caadeaeda233a9e219011255647583c571edd909"
+    },
+    {
+      "url": "https://www.godscode.com.cn/site-navigation.css",
+      "sha256": "bd9c6ddf22d3fab5cad58430e355d935f545673e87b76dcfe0ba11667a21771a"
+    }
+  ],
+  "light": "official site tokens; primary uses official navigation preview blue for text contrast",
+  "dark": "accessible adaptation of official ink/background/blue, not a claimed official dark theme"
+}

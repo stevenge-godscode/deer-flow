@@ -1957,3 +1957,5 @@ Within a project, use the Agents menu beside New chat to start a specialist conv
 Memory-limited DEV containers can set `DEER_FLOW_DEV_LOW_MEMORY=1` to reduce Webpack memory use at the cost of recompilation speed. This setting does not change production builds.
 
 Browser-hosted native TUI integration: [authenticated browser workbench](backend/browser_tui/README.md).
+
+Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.

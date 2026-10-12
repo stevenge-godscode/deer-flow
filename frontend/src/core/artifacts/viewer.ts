@@ -115,8 +115,11 @@ export function parseArtifactViewerQuery(
  * App Router owns the title element and re-applies the layout's metadata over
  * anything an effect writes.
  */
-export function artifactViewerTitle(filepath: string | undefined) {
-  return filepath ? `${getFileName(filepath)} - DeerFlow` : "DeerFlow";
+export function artifactViewerTitle(
+  filepath: string | undefined,
+  brandName = "Genesis",
+) {
+  return filepath ? `${getFileName(filepath)} - ${brandName}` : brandName;
 }
 
 /**

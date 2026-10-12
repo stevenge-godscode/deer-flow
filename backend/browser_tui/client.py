@@ -28,7 +28,7 @@ def session_headers(cookie: str, origin: str) -> dict[str, str]:
     parsed = SimpleCookie()
     parsed.load(cookie)
     if not parsed.get("access_token"):
-        raise AccessDenied("请先登录 DeerFlow。")
+        raise AccessDenied("请先登录工作台。")
     # Only app authentication and double-submit cookies reach the Gateway.
     parts = [m.OutputString() for key, m in parsed.items() if key in {"access_token", "csrf_token", "deerflow_session_persistent"}]
     headers = {"Cookie": "; ".join(parts), "Origin": origin}
@@ -111,7 +111,7 @@ class GatewayClient:
         if response.status_code == 409:
             raise RuntimeError("当前会话正在运行或上下文发生变化，请返回网页处理。")
         if response.status_code >= 400:
-            raise RuntimeError(f"DeerFlow 请求失败（HTTP {response.status_code}）。")
+            raise RuntimeError(f"应用请求失败（HTTP {response.status_code}）。")
 
     def bind(self, thread_id: str, context: dict) -> Binding:
         import re

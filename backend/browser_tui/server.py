@@ -15,6 +15,7 @@ from aiohttp import WSMsgType, web
 from textual_serve.app_service import AppService
 from textual_serve.server import Server
 
+from .branding import load_brand
 from .client import AccessDenied, GatewayClient, session_headers
 
 
@@ -36,6 +37,7 @@ class BoundAppService(AppService):
                 "HOME",
                 "LANG",
                 "TUI_GATEWAY_URL",
+                "GENESIS_BRAND_CONFIG",
                 "TEXTUAL_DRIVER",
                 "TEXTUAL_FPS",
                 "TEXTUAL_COLOR_SYSTEM",
@@ -77,10 +79,11 @@ class BoundAppService(AppService):
 
 class BrowserServer(Server):
     def __init__(self, gateway_url, public_url, **kwargs):
+        self.brand = load_brand()
         super().__init__(
-            "DeerFlow native TUI",
+            self.brand["name"] + " 终端工作台",
             public_url=public_url,
-            title="DeerFlow 终端工作台",
+            title=self.brand["title"],
             **kwargs,
         )
         self.gateway_url = gateway_url
@@ -118,6 +121,7 @@ class BrowserServer(Server):
             '    <link\n      rel="stylesheet"\n      href="https://fonts.googleapis.com/css?family=Roboto%20Mono"\n    />',
             "",
         )
+        template = template.replace("<body>", '<body><img src="/brand/logo" alt="Genesis Logo" style="position:fixed;right:12px;top:4px;width:22px;height:22px;z-index:2;border-radius:4px">')
         template = template.replace(
             "</body>",
             """<script>

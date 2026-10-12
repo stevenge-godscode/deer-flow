@@ -1,0 +1,30 @@
+{
+  "version": "genesis-brand-20261012.1",
+  "name": "Genesis",
+  "company": "神典信息",
+  "title": "神典信息 · Genesis 智能体工作台",
+  "description": "让 AI 真正为你的公司工作",
+  "website": "https://www.godscode.com.cn/",
+  "docs": "https://www.godscode.com.cn/architecture.html",
+  "support": "mailto:info@godscode.com.cn",
+  "light": {
+    "background": "#f5f5f7",
+    "foreground": "#172033",
+    "surface": "#ffffff",
+    "muted": "#edf2f5",
+    "mutedForeground": "#6b7280",
+    "primary": "#1764bf",
+    "primaryForeground": "#ffffff",
+    "border": "#dde4ea"
+  },
+  "dark": {
+    "background": "#08090b",
+    "foreground": "#f5f5f7",
+    "surface": "#172033",
+    "muted": "#202c40",
+    "mutedForeground": "#a9b6c9",
+    "primary": "#82b6ff",
+    "primaryForeground": "#08090b",
+    "border": "#344258"
+  }
+}

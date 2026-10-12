@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,10 +14,10 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useBrand } from "@/core/branding/context";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
-import { GithubIcon } from "./github-icon";
 import { Tooltip } from "./tooltip";
 // Workspace sections that have an index route (/workspace/<section>/page.tsx)
 // and can therefore be linked to from the breadcrumb.
@@ -44,6 +45,7 @@ export function WorkspaceHeader({
   ...props
 }: React.ComponentProps<"header">) {
   const { t } = useI18n();
+  const brand = useBrand();
   const pathname = usePathname();
   const segments = useMemo(() => {
     const parts = pathname?.split("/") || [];
@@ -100,14 +102,14 @@ export function WorkspaceHeader({
         </Breadcrumb>
       </div>
       <div className="pr-4">
-        <Tooltip content={t.workspace.githubTooltip}>
+        <Tooltip content={brand.title}>
           <a
-            href="https://github.com/bytedance/deer-flow"
+            href={brand.website}
             target="_blank"
             rel="noopener noreferrer"
             className="opacity-75 transition hover:opacity-100"
           >
-            <GithubIcon className="size-6" />
+            <BrandLogo compact />
           </a>
         </Tooltip>
       </div>

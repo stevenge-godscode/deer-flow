@@ -196,3 +196,5 @@ archive import, not a remote marketplace. Screenshot E2E fixtures are demo data.
 The fork project-chat frontend CI checks the exact pushed commit on Node 22 with the frozen pnpm lock, type generation, lint/type checks and unit tests. It is a source gate; real DEV runtime/browser acceptance is recorded separately.
 
 The default and custom-agent chat headers share BrowserTuiTrigger. Browser TUI links preserve only public model/mode settings; the authenticated hosting component binds owner/Project/Agent/thread through the Gateway.
+
+Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.
