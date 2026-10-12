@@ -41,9 +41,9 @@ describe("runtime branding boundary", () => {
   });
   it("uses bounded numeric logo and wordmark sizes", () => {
     expect(defaultBrand.logo).toEqual({
-      size: 40,
-      compactSize: 32,
-      wordmarkSize: 28,
+      size: 28,
+      compactSize: 28,
+      wordmarkSize: 18,
       terminalSize: 36,
     });
     for (const wordmarkSize of [0, 100, "28px; color:red"]) {
@@ -54,8 +54,14 @@ describe("runtime branding boundary", () => {
         }),
       ).toThrow();
     }
-    const { logo, ...legacy } = defaultBrand;
-    expect(brandSchema.parse(legacy).logo).toEqual(logo);
+    const legacy = { ...defaultBrand };
+    Reflect.deleteProperty(legacy, "logo");
+    expect(brandSchema.parse(legacy).logo).toEqual({
+      size: 40,
+      compactSize: 32,
+      wordmarkSize: 28,
+      terminalSize: 36,
+    });
   });
   it("uses the same configured palette for shared controls in both themes", () => {
     const css = brandCSS(defaultBrand);
