@@ -19,3 +19,5 @@ python -m browser_tui.server
 Deployment must proxy `/tui/` and its WebSocket to this component on the same app origin. Do not expose an unauthenticated standalone textual-serve listener. Downloads stay in the existing authenticated web artifact UI. HTTP health only describes this hosting process, not business acceptance.
 
 Focused contract tests: `python -m unittest browser_tui.test_client -v`. Mock values in these tests are negative/unit evidence only; actual DEV browser/API/security evidence is required separately. Closing this window is an interruption/disconnect request, not proof that an already executing remote tool has finished; the Gateway's run status is authoritative.
+
+The browser also checks the current same-origin application identity on focus, visibility and every five seconds. Switching browser accounts removes the previous user's TUI view and disconnects its process; original admitted cookies alone cannot keep an old view open.

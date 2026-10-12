@@ -54,6 +54,24 @@ class BrowserHostingGuardTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status, 403)
         self.assertEqual(len(self.server.active), 0)
 
+    async def test_browser_account_guard_uses_trusted_binding_and_no_session_secret(self):
+        from browser_tui.client import Binding
+
+        with patch("browser_tui.server.GatewayClient") as gateway:
+            gateway.return_value.bind.return_value = Binding("trusted-user", "owned", None, "__default__", {}, False)
+            response = await self.client.get(
+                "/tui/owned/?user_id=forged-user",
+                headers={"Cookie": "access_token=synthetic-private"},
+            )
+            self.assertEqual(response.status, 200)
+            html = await response.text()
+            self.assertIn('const expectedUser = "trusted-user"', html)
+            self.assertIn("cache: 'no-store'", html)
+            self.assertIn("current.id !== expectedUser", html)
+            self.assertIn("visibilitychange", html)
+            self.assertNotIn("synthetic-private", html)
+            self.assertNotIn("forged-user", html)
+
     async def test_real_renderer_query_and_single_focus_frames(self):
         from unittest.mock import AsyncMock
         from urllib.parse import quote

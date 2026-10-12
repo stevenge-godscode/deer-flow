@@ -118,6 +118,39 @@ class BrowserServer(Server):
             '    <link\n      rel="stylesheet"\n      href="https://fonts.googleapis.com/css?family=Roboto%20Mono"\n    />',
             "",
         )
+        template = template.replace(
+            "</body>",
+            """<script>
+(() => {
+  const expectedUser = {{ binding_user_id | tojson }};
+  let checking = false;
+  async function checkIdentity() {
+    if (checking) return;
+    checking = true;
+    try {
+      const response = await fetch('/api/v1/auth/me', {
+        credentials: 'same-origin', cache: 'no-store',
+        signal: AbortSignal.timeout(5000)
+      });
+      if (!response.ok) throw new Error('session');
+      const current = await response.json();
+      if (current.id !== expectedUser || !current.permissions?.includes('threads:read')) {
+        throw new Error('identity');
+      }
+    } catch (_) {
+      window.location.replace('/workspace/chats');
+    } finally { checking = false; }
+  }
+  window.addEventListener('focus', checkIdentity);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkIdentity();
+  });
+  setInterval(checkIdentity, 5000);
+  checkIdentity();
+})();
+</script>
+</body>""",
+        )
         aiohttp_jinja2.setup(app, loader=jinja2.DictLoader({"app_index.html": template}))
         app.add_routes(
             [
@@ -141,13 +174,14 @@ class BrowserServer(Server):
 
     @aiohttp_jinja2.template("app_index.html")
     async def handle_index(self, request):
-        await self.identify(request)
+        _, binding = await self.identify(request)
         thread_id = request.match_info["thread_id"]
         # Upstream appends ?width=...; reserve a viewport parameter so this
         # suffix cannot become part of the context JSON.
         query = urlencode({"context": request.query.get("context", "{}")})
         return {
             "font_size": 16,
+            "binding_user_id": binding.user_id,
             "app_websocket_url": self.public_url.replace("https:", "wss:").replace("http:", "ws:") + f"/tui/{thread_id}/ws?{query}&viewport=",
             "config": {"static": {"url": self.public_url + "/tui/static/"}},
             "application": {"name": self.title},
