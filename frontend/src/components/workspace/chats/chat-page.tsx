@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ArtifactTrigger } from "@/components/workspace/artifacts";
+import { BrowserTuiTrigger } from "@/components/workspace/browser-tui-trigger";
 import { BrowserTrigger } from "@/components/workspace/browser-view";
 import { ContextUsageBadge } from "@/components/workspace/context-usage-badge";
 import { ExportTrigger } from "@/components/workspace/export-trigger";
@@ -363,6 +364,14 @@ export default function ChatPage() {
                 ) : (
                   <ContextUsageBadge contextUsage={contextUsage} />
                 )}
+                {!isNewThread &&
+                  !isMock &&
+                  env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY !== "true" && (
+                    <BrowserTuiTrigger
+                      threadId={threadId}
+                      context={settings.context}
+                    />
+                  )}
                 <SidecarTrigger />
                 {browserEnabled && <BrowserTrigger />}
                 <ExportTrigger threadId={threadId} />

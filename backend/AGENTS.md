@@ -395,3 +395,5 @@ See `docs/` directory for detailed documentation:
 - [PATH_EXAMPLES.md](docs/PATH_EXAMPLES.md) - Path types and usage
 - [summarization.md](docs/summarization.md) - Context summarization
 - [plan_mode_usage.md](docs/plan_mode_usage.md) - Plan mode with TodoList
+
+Browser TUI hosting lives in browser_tui/, an app-layer adapter over native Textual UI. It uses authenticated Gateway APIs only; do not connect default-user embedded clients or databases from this surface.
