@@ -1,0 +1,55 @@
+{
+  "accepted_upstream": "345f08be00c8a9495079b732a39b46aa9af1584e",
+  "upstream_url": "https://github.com/bytedance/deer-flow.git",
+  "integration_base": "f3f6de1901eb6942c51f79475545436d60860b1a",
+  "allowed_source_exclusions": {
+    "frontend/src/core/i18n/locales": "Unmodified upstream translations adapted by shared brandMessages at useI18n; runtime locale brand regression required",
+    "frontend/src/components/landing": "Upstream marketing modules are not imported by branded root page",
+    "frontend/src/content": "Historical upstream docs retained, public docs/harness/blog routes redirect via proxy",
+    "frontend/src/app/blog": "Upstream blog retained behind redirect",
+    "frontend/src/app/[lang]": "Upstream documentation retained behind redirect",
+    "frontend/src/app/github-stars": "No upstream GitHub counter in business UI; route redirects",
+    "frontend/src/components/workspace/settings/about-content.ts": "Unreferenced upstream About retained for merge; active About uses brand provider",
+    "frontend/src/legal-notices.ts": "Required MIT attribution, deliberately exposed only through /legal",
+    "frontend/src/core/branding/config.ts": "Presentation string adapter contains upstream match pattern"
+  },
+  "public_routes": [
+    "/",
+    "/login",
+    "/workspace/chats",
+    "/workspace/capabilities",
+    "/workspace/projects",
+    "/updates",
+    "/artifacts/view",
+    "/brand/config",
+    "/brand/logo"
+  ],
+  "legal_route": "/legal",
+  "redirected_upstream_routes": [
+    "/blog",
+    "/en/docs",
+    "/zh/docs",
+    "/en/harness",
+    "/zh/harness",
+    "/showcase",
+    "/github-stars"
+  ],
+  "patch_boundaries": [
+    "branding/",
+    "frontend/src/core/branding/",
+    "frontend/src/components/brand-logo.tsx",
+    "backend/browser_tui/",
+    "scripts/check_branding.py",
+    "scripts/prepare_upstream.py"
+  ],
+  "observed_upstream_main": "5b2a1352cd67d5577ebf027b9f920e7ef1e360d4",
+  "upstream_main_merged": false,
+  "internal_literal_allowlist": {
+    "frontend/src/core/threads/hooks.ts": [
+      "DeerFlowSummarizationMiddleware.before_model"
+    ],
+    "frontend/src/proxy.ts": [
+      "/images/deer.svg"
+    ]
+  }
+}

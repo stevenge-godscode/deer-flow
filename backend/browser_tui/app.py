@@ -7,6 +7,7 @@ from deerflow.tui.app import DeerFlowTUI
 from deerflow.tui.cli import LaunchPlan
 from deerflow.tui.view_state import AssistantRow, SystemMessage, UserRow
 
+from .branding import brand_header, brand_rendered_text, load_brand
 from .client import Binding, GatewayClient
 
 
@@ -28,8 +29,39 @@ class BoundSession:
 
 
 class BrowserTUI(DeerFlowTUI):
+    def __init__(self, *args, **kwargs):
+        self.brand = load_brand()
+        p = self.brand["dark"]
+        self.CSS = (
+            DeerFlowTUI.CSS
+            + f"""
+        Screen {{ background: {p["background"]}; color: {p["foreground"]}; }}
+        #scroll {{ background: {p["background"]}; }}
+        #header, #status, #composer, #palette {{ background: {p["surface"]}; color: {p["foreground"]}; }}
+        #composer {{ border: solid {p["border"]}; }}
+        #composer:focus {{ border: solid {p["primary"]}; }}"""
+        )
+        super().__init__(*args, **kwargs)
+        self.title = self.brand["title"]
+
+    def _refresh_header(self):
+        self.query_one("#header").update(brand_header(self.brand, self._model, self._thread_label()))
+
+    def _refresh_transcript(self):
+        super()._refresh_transcript()
+        from deerflow.tui.render import render_transcript
+
+        self.query_one("#transcript").update(brand_rendered_text(render_transcript(self.state), self.brand))
+
+    def _refresh_status(self):
+        super()._refresh_status()
+        from deerflow.tui.render import render_status
+
+        self.query_one("#status").update(brand_rendered_text(render_status(self.state, model=self._model, thread_label=self._thread_label(), spinner=""), self.brand))
+
     def on_mount(self):
         super().on_mount()
+        self.query_one("#composer").placeholder = f"Message {self.brand['name']}…   ( / for commands )"
         client = self.session.client
         values = client.history()
         rows = []
@@ -46,7 +78,7 @@ class BrowserTUI(DeerFlowTUI):
         from dataclasses import replace
 
         self.state = replace(self.state, rows=tuple(rows))
-        self._dispatch(SystemMessage("已绑定当前登录用户与会话。操作通过 DeerFlow API 执行；返回网页切换 Project、智能体或模型。"))
+        self._dispatch(SystemMessage("已绑定当前登录用户与会话。操作通过当前用户的应用权限执行；返回网页切换 Project、智能体或模型。"))
         if not client.binding.can_write:
             self.query_one("#composer").disabled = True
             self._dispatch(SystemMessage("当前权限仅允许查看。"))

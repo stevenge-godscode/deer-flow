@@ -15,6 +15,7 @@ from aiohttp import WSMsgType, web
 from textual_serve.app_service import AppService
 from textual_serve.server import Server
 
+from .branding import brand_template, load_brand
 from .client import AccessDenied, GatewayClient, session_headers
 
 
@@ -36,6 +37,7 @@ class BoundAppService(AppService):
                 "HOME",
                 "LANG",
                 "TUI_GATEWAY_URL",
+                "GENESIS_BRAND_CONFIG",
                 "TEXTUAL_DRIVER",
                 "TEXTUAL_FPS",
                 "TEXTUAL_COLOR_SYSTEM",
@@ -77,10 +79,11 @@ class BoundAppService(AppService):
 
 class BrowserServer(Server):
     def __init__(self, gateway_url, public_url, **kwargs):
+        self.brand = load_brand()
         super().__init__(
-            "DeerFlow native TUI",
+            self.brand["name"] + " 终端工作台",
             public_url=public_url,
-            title="DeerFlow 终端工作台",
+            title=self.brand["title"],
             **kwargs,
         )
         self.gateway_url = gateway_url
@@ -107,7 +110,7 @@ class BrowserServer(Server):
         except (AccessDenied, ValueError, TypeError):
             raise web.HTTPForbidden(text="请登录并确认你有权访问当前会话。") from None
         except Exception:
-            raise web.HTTPServiceUnavailable(text="无法确认会话，请返回 DeerFlow 检查。") from None
+            raise web.HTTPServiceUnavailable(text="无法确认会话，请返回工作台检查。") from None
         return headers, binding
 
     async def _make_app(self):
@@ -118,6 +121,7 @@ class BrowserServer(Server):
             '    <link\n      rel="stylesheet"\n      href="https://fonts.googleapis.com/css?family=Roboto%20Mono"\n    />',
             "",
         )
+        template = brand_template(template, self.brand)
         template = template.replace(
             "</body>",
             """<script>
