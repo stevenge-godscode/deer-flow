@@ -17,7 +17,7 @@ export function AboutSettingsPage() {
       </p>
       <p className="text-muted-foreground text-sm">品牌版本 {brand.version}</p>
       <Button variant="outline" asChild>
-        <Link href="/updates">开发版本 {APP_VERSION} · 查看更新</Link>
+        <Link href="/updates">运行版本 {APP_VERSION} · 查看更新</Link>
       </Button>
       <div className="flex gap-5 text-sm">
         <a href={brand.website}>官方网站</a>
