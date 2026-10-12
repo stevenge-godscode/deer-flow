@@ -27,3 +27,5 @@ No functional upstream upgrade, main merge or STG/PROD promotion is part of this
 DEV business entry: https://agents.dev.godscode.com.cn (same application/client and existing DEV FRP route). Old technical host redirects at the external DEV edge; IdP client ID, issuer, scopes and roles stay unchanged. Only callback/frontend origin and app display metadata change. New-domain cookies require native login; no cookies are copied between origins.
 
 CI source workflow runs the same brand gate and requires GENESIS_CI_HTTP_PROXY / GENESIS_CI_HTTPS_PROXY / GENESIS_CI_NO_PROXY repository variables before checkout/tool downloads. This fork currently has no registered self-hosted runners; manual DEV gates are actual evidence, not a claim that GitHub-hosted CI or its proxy connectivity has passed. Do not silently fall back to direct source/download requests.
+
+2026-10-12 display decision: use Genesis only in active web, TUI and app-login chrome. Official source-company provenance is retained internally. Shared web logo is 40px (32px in compact navigation); terminal renderer logo is 36px.

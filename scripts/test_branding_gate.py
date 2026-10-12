@@ -15,7 +15,7 @@ class BrandGateTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        for name in ["branding/upstream-policy.json", "branding/provenance.json", "frontend/public/branding/genesis-logo.png", "frontend/src/legal-notices.ts", "frontend/src/components/workspace/settings/about-settings-page.tsx", "frontend/src/app/page.tsx", "frontend/src/proxy.ts", "LICENSE"]:
+        for name in ["branding/site.json", "branding/upstream-policy.json", "branding/provenance.json", "frontend/public/branding/genesis-logo.png", "frontend/src/legal-notices.ts", "frontend/src/components/workspace/settings/about-settings-page.tsx", "frontend/src/app/page.tsx", "frontend/src/proxy.ts", "LICENSE"]:
             dest = self.root / name
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes((ROOT / name).read_bytes())
@@ -26,10 +26,12 @@ class BrandGateTests(unittest.TestCase):
     def test_new_visible_upstream_brand_is_rejected(self):
         p = self.root / "frontend/src/app/added/page.tsx"
         p.parent.mkdir(parents=True)
-        p.write_text('export default () => <h1>DeerFlow</h1>;', encoding="utf-8")
-        result = module.check(self.root)
-        self.assertFalse(result["passed"])
-        self.assertIn("upstream brand", result["failures"][0])
+        for label in ["DeerFlow", "神典信息"]:
+            with self.subTest(label=label):
+                p.write_text('export default () => <h1>' + label + '</h1>;', encoding="utf-8")
+                result = module.check(self.root)
+                self.assertFalse(result["passed"])
+                self.assertIn("upstream brand", result["failures"][0])
 
     def test_missing_legal_and_changed_logo_fail(self):
         (self.root / "frontend/src/legal-notices.ts").write_text("export default '';", encoding="utf-8")

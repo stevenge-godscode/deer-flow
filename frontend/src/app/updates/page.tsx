@@ -18,7 +18,7 @@ export default async function UpdatesPage() {
       <section className="bg-card space-y-3 rounded-xl border p-6">
         <h2 className="font-semibold">2026-10-12 · DEV 开发中</h2>
         <ul className="list-disc space-y-2 pl-5">
-          <li>统一神典信息 / Genesis 官网 Logo、网页与终端主题。</li>
+          <li>统一Genesis 官网 Logo、网页与终端主题。</li>
           <li>运行时品牌配置、开源声明及品牌回归检查。</li>
           <li>网页新窗口终端工作台，沿用当前用户、会话与只读权限。</li>
         </ul>

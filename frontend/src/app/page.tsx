@@ -19,9 +19,7 @@ export default async function LandingPage() {
         </nav>
       </header>
       <main className="mx-auto max-w-6xl space-y-10 px-6 py-20">
-        <p className="text-primary font-semibold">
-          {brand.company} · {brand.name}
-        </p>
+        <p className="text-primary font-semibold">{brand.name}</p>
         <h1 className="max-w-4xl text-4xl leading-tight font-semibold tracking-tight sm:text-6xl">
           {brand.description}
         </h1>
@@ -50,9 +48,7 @@ export default async function LandingPage() {
         </div>
       </main>
       <footer className="text-muted-foreground mx-auto flex max-w-6xl flex-wrap gap-6 border-t px-6 py-6 text-sm">
-        <span>
-          {brand.company} · {brand.name}
-        </span>
+        <span>{brand.name}</span>
         <a href={brand.support}>联系我们</a>
         <Link href="/legal">开源声明</Link>
       </footer>

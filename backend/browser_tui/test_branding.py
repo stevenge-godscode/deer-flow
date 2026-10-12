@@ -11,19 +11,20 @@ from .branding import brand_header, brand_rendered_text, brand_template, load_br
 class BrandTests(unittest.TestCase):
     def test_shared_brand_and_native_header(self):
         brand = load_brand()
-        self.assertEqual(brand["company"], "神典信息")
+        self.assertEqual(brand["company"], "Genesis")
         self.assertIn("Genesis", brand_header(brand, "model", "thread").plain)
         self.assertNotIn("DeerFlow", brand_header(brand, "model", "thread").plain)
 
     def test_renderer_document_with_body_attributes_and_safe_metadata(self):
         brand = load_brand()
         brand["title"] = 'Genesis & "DEV"'
-        source = '<html><head><title>old</title></head><body data-pingurl="">native renderer</body></html>'
+        source = '<html><head><title>old</title><style>body{background:red}</style></head><body data-pingurl="">native renderer</body></html>'
         result = brand_template(source, brand)
         self.assertIn('<body data-pingurl=""><img src="/brand/logo"', result)
         self.assertIn("Genesis &amp; &quot;DEV&quot;", result)
         self.assertIn('rel="icon" href="/brand/logo"', result)
         self.assertEqual(result.count("<title>"), 1)
+        self.assertGreater(result.index("html,body{background:"), result.index("body{background:red}"))
         with self.assertRaises(ValueError):
             brand_template("<main>unexpected upstream template</main>", brand)
 
@@ -67,6 +68,8 @@ class NativeMountBrandTests(unittest.IsolatedAsyncioTestCase):
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             self.assertTrue(app.query_one("#composer").disabled)
+            self.assertEqual(app.screen.styles.background.hex, app.brand["dark"]["background"].upper())
+            self.assertEqual(app.query_one("#scroll").styles.background.hex, app.brand["dark"]["background"].upper())
             self.assertIn("Genesis", app.query_one("#composer").placeholder)
             self.assertNotIn("DeerFlow", str(app.query_one("#header").render()))
             self.assertIn("Genesis", str(app.query_one("#header").render()))

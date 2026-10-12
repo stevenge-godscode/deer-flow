@@ -19,15 +19,15 @@ export function BrandLogo({
         "inline-flex shrink-0 items-center gap-2 font-semibold tracking-tight",
         className,
       )}
-      aria-label={`${brand.company} · ${brand.name}`}
+      aria-label={brand.name}
     >
       <Image
         src="/brand/logo"
         alt={`${brand.company} Logo`}
-        width={28}
-        height={28}
+        width={compact ? 32 : 40}
+        height={compact ? 32 : 40}
         unoptimized
-        className="size-7 rounded"
+        className={cn("rounded", compact ? "size-8" : "size-10")}
       />
       {!compact && <span>{brand.name}</span>}
     </span>

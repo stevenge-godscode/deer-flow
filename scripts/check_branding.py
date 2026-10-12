@@ -10,6 +10,9 @@ from pathlib import Path
 def check(root):
     policy = json.loads((root / "branding/upstream-policy.json").read_text(encoding="utf-8"))
     provenance = json.loads((root / "branding/provenance.json").read_text(encoding="utf-8"))
+    brand = json.loads((root / "branding/site.json").read_text(encoding="utf-8"))
+    if brand["name"] != "Genesis" or "神典" in json.dumps(brand, ensure_ascii=False):
+        return {"gate": "genesis-brand-source", "passed": False, "failures": ["business display must use Genesis only"]}
     logo = root / "frontend/public/branding/genesis-logo.png"
     failures = []
     if hashlib.sha256(logo.read_bytes()).hexdigest() != provenance["logo"]["sha256"]:
@@ -26,13 +29,13 @@ def check(root):
                 continue
             for marker in policy.get("internal_literal_allowlist", {}).get(relative, []):
                 line = line.replace(marker, "INTERNAL_PROTOCOL_MARKER")
-            if re.search(r"DeerFlow|deerflow\.tech|github\.com/bytedance/deer-flow|/images/deer\.svg", line):
+            if re.search(r"DeerFlow|神典|deerflow\.tech|github\.com/bytedance/deer-flow|/images/deer\.svg", line):
                 failures.append(f"{relative}:{number}: upstream brand in business surface")
     for path in (root / "backend/browser_tui").glob("*.py"):
         if path.name.startswith("test_"):
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str) and re.search(r"DeerFlow|deerflow\.tech|github\.com/bytedance/deer-flow", node.value):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and re.search(r"DeerFlow|神典|deerflow\.tech|github\.com/bytedance/deer-flow", node.value):
                 failures.append(f"{path.relative_to(root)}:{node.lineno}: upstream brand in generated TUI surface")
     active_about = (root / "frontend/src/components/workspace/settings/about-settings-page.tsx").read_text(encoding="utf-8")
     home = (root / "frontend/src/app/page.tsx").read_text(encoding="utf-8")

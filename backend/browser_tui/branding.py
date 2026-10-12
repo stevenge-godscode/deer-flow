@@ -67,13 +67,16 @@ def brand_rendered_text(text, brand):
         THEME.assistant: p["foreground"],
     }
     result = text.copy()
-    spans = []
-    for span in text.spans:
-        style = Style.parse(span.style) if isinstance(span.style, str) else span.style
+
+    def mapped_style(value):
+        style = Style.parse(value) if isinstance(value, str) else value
         color = style.color.get_truecolor().hex if style.color else None
         bg = style.bgcolor.get_truecolor().hex if style.bgcolor else None
-        mapped = style + Style(color=mapping.get(color), bgcolor=mapping.get(bg))
-        spans.append(Span(span.start, span.end, mapped))
+        return style + Style(color=mapping.get(color), bgcolor=mapping.get(bg))
+
+    result.style = mapped_style(result.style)
+    spans = [Span(span.start, span.end, mapped_style(span.style)) for span in text.spans]
+
     result.spans = spans
     return result
 
@@ -81,10 +84,12 @@ def brand_rendered_text(text, brand):
 def brand_template(template, brand):
     """Adapt the real renderer template, including attribute-bearing body tags."""
     template = re.sub(r"<title\b[^>]*>.*?</title>", "", template, flags=re.I | re.S)
-    header = "<title>" + html.escape(brand["title"]) + '</title><link rel="icon" href="/brand/logo"><style>html,body{background:' + brand["dark"]["background"] + "}</style>"
+    header = "<title>" + html.escape(brand["title"]) + '</title><link rel="icon" href="/brand/logo">'
     template, heads = re.subn(r"(<head\b[^>]*>)", lambda m: m.group(1) + header, template, count=1, flags=re.I)
-    logo = '<img src="/brand/logo" alt="' + html.escape(brand["company"] + " Logo", quote=True) + '" style="position:fixed;right:12px;top:4px;width:22px;height:22px;z-index:2;border-radius:4px">'
+    theme = "<style>html,body{background:" + brand["dark"]["background"] + "}</style>"
+    template, head_ends = re.subn(r"(</head\s*>)", lambda m: theme + m.group(1), template, count=1, flags=re.I)
+    logo = '<img src="/brand/logo" alt="' + html.escape(brand["company"] + " Logo", quote=True) + '" style="position:fixed;right:12px;top:4px;width:36px;height:36px;z-index:2;border-radius:4px">'
     template, bodies = re.subn(r"(<body\b[^>]*>)", lambda m: m.group(1) + logo, template, count=1, flags=re.I)
-    if heads != 1 or bodies != 1:
+    if heads != 1 or head_ends != 1 or bodies != 1:
         raise ValueError("Unexpected renderer document contract")
     return template

@@ -31,14 +31,18 @@ class BoundSession:
 class BrowserTUI(DeerFlowTUI):
     def __init__(self, *args, **kwargs):
         self.brand = load_brand()
-        super().__init__(*args, **kwargs)
-        self.title = self.brand["title"]
         p = self.brand["dark"]
-        self.stylesheet.add_source(f"""Screen {{ background: {p["background"]}; color: {p["foreground"]}; }}
+        self.CSS = (
+            DeerFlowTUI.CSS
+            + f"""
+        Screen {{ background: {p["background"]}; color: {p["foreground"]}; }}
         #scroll {{ background: {p["background"]}; }}
         #header, #status, #composer, #palette {{ background: {p["surface"]}; color: {p["foreground"]}; }}
         #composer {{ border: solid {p["border"]}; }}
-        #composer:focus {{ border: solid {p["primary"]}; }}""")
+        #composer:focus {{ border: solid {p["primary"]}; }}"""
+        )
+        super().__init__(*args, **kwargs)
+        self.title = self.brand["title"]
 
     def _refresh_header(self):
         self.query_one("#header").update(brand_header(self.brand, self._model, self._thread_label()))
