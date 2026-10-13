@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@rstest/core";
+
 import { userSchema } from "@/core/auth/types";
 describe("genuine optional OAuth contact",()=>{
   it("accepts an ordinary verified server OAuth account without fake email",()=>{
