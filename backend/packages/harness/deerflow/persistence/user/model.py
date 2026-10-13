@@ -13,7 +13,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from deerflow.persistence.base import Base
@@ -45,7 +54,7 @@ class UserRow(Base):
     # UUIDs are stored as 36-char strings for cross-backend portability.
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
 
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True, index=True)
     password_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # "admin" | "user" — kept as plain string to avoid ALTER TABLE pain
@@ -69,6 +78,10 @@ class UserRow(Base):
     token_version: Mapped[int] = mapped_column(nullable=False, default=0)
 
     __table_args__ = (
+        CheckConstraint(
+            "email IS NOT NULL OR (oauth_provider IS NOT NULL AND oauth_id IS NOT NULL AND oauth_provider <> '' AND oauth_id <> '' AND password_hash IS NULL AND system_role = 'user')",
+            name="ck_users_optional_oidc_email",
+        ),
         # sqlite_where alone is a SQLAlchemy dialect-specific kwarg -- it
         # does not apply on the postgresql dialect, so a table created
         # against Postgres with only sqlite_where builds a FULL
@@ -101,7 +114,12 @@ class UserIdentityEventRow(Base):
 
     __tablename__ = "user_identity_events"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     issuer: Mapped[str] = mapped_column(String(512), nullable=False)
     subject: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -109,4 +127,7 @@ class UserIdentityEventRow(Base):
     proof: Mapped[str] = mapped_column(String(32), nullable=False)
     token_version: Mapped[int] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-    __table_args__ = (CheckConstraint("event IN ('link','unlink')", name="ck_identity_event_kind"), CheckConstraint("token_version > 0", name="ck_identity_event_version"))
+    __table_args__ = (
+        CheckConstraint("event IN ('link','unlink')", name="ck_identity_event_kind"),
+        CheckConstraint("token_version > 0", name="ck_identity_event_version"),
+    )

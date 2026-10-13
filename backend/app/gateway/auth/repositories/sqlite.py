@@ -21,7 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.gateway.auth.models import User
 from app.gateway.auth.repositories.base import UserNotFoundError, UserRepository
-from deerflow.persistence.user.model import OAUTH_IDENTITY_INDEX_NAME, UserIdentityEventRow, UserRow
+from deerflow.persistence.user.model import (
+    OAUTH_IDENTITY_INDEX_NAME,
+    UserIdentityEventRow,
+    UserRow,
+)
 
 # ``email`` is ``mapped_column(unique=True, index=True)``, which SQLAlchemy
 # (and 0001_baseline) realise as a single UNIQUE INDEX -- not a named UNIQUE
@@ -113,7 +117,7 @@ def _violated_constraint(exc: IntegrityError) -> str | None:
     return None
 
 
-def _normalize_email(email: str) -> str:
+def _normalize_email(email: str | None) -> str | None:
     """Canonicalise an email address for storage and lookup.
 
     An email identifies exactly one account regardless of the case the client
@@ -129,7 +133,7 @@ def _normalize_email(email: str) -> str:
     case-insensitively on read closes that gap for new accounts while letting
     existing mixed-case rows keep resolving, without a destructive bulk rewrite.
     """
-    return email.lower()
+    return email.lower() if email is not None else None
 
 
 class SQLiteUserRepository(UserRepository):
@@ -189,7 +193,7 @@ class SQLiteUserRepository(UserRepository):
             # The unique constraint is case-sensitive, so it cannot catch a
             # canonical address colliding with a mixed-case legacy row.
             existing = select(UserRow.id).where(func.lower(UserRow.email) == user.email).limit(1)
-            if await session.scalar(existing) is not None:
+            if user.email is not None and await session.scalar(existing) is not None:
                 raise ValueError(f"Email already registered: {user.email}")
             session.add(row)
             try:
@@ -296,10 +300,25 @@ class SQLiteUserRepository(UserRepository):
             row = result.scalar_one_or_none()
             return self._row_to_user(row) if row is not None else None
 
-    async def _change_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int, *, unlink: bool) -> User:
+    async def _change_oauth_identity(
+        self,
+        user_id: str,
+        provider: str,
+        subject: str,
+        issuer: str,
+        expected_token_version: int,
+        *,
+        unlink: bool,
+    ) -> User:
         if not 0 < len(provider) <= 32 or not 0 < len(subject) <= 128 or not 0 < len(issuer) <= 512 or expected_token_version < 0:
             raise ValueError("Invalid identity binding")
-        query = update(UserRow).where(UserRow.id == user_id, UserRow.system_role == "user", UserRow.password_hash.is_not(None), UserRow.password_hash != "", UserRow.token_version == expected_token_version)
+        query = update(UserRow).where(
+            UserRow.id == user_id,
+            UserRow.system_role == "user",
+            UserRow.password_hash.is_not(None),
+            UserRow.password_hash != "",
+            UserRow.token_version == expected_token_version,
+        )
         if unlink:
             query = query.where(UserRow.oauth_provider == provider, UserRow.oauth_id == subject).values(oauth_provider=None, oauth_id=None)
         else:
@@ -312,7 +331,14 @@ class SQLiteUserRepository(UserRepository):
                     raise ValueError("Account or binding changed; prove ownership again")
                 session.add(
                     UserIdentityEventRow(
-                        id=str(uuid4()), user_id=user_id, provider=provider, issuer=issuer, subject=subject, event="unlink" if unlink else "link", proof="password" if unlink else "password+oidc", token_version=row.token_version
+                        id=str(uuid4()),
+                        user_id=user_id,
+                        provider=provider,
+                        issuer=issuer,
+                        subject=subject,
+                        event="unlink" if unlink else "link",
+                        proof="password" if unlink else "password+oidc",
+                        token_version=row.token_version,
                     )
                 )
                 await session.commit()
@@ -323,8 +349,22 @@ class SQLiteUserRepository(UserRepository):
                     raise ValueError("Identity already belongs to an account") from None
                 raise
 
-    async def link_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+    async def link_oauth_identity(
+        self,
+        user_id: str,
+        provider: str,
+        subject: str,
+        issuer: str,
+        expected_token_version: int,
+    ) -> User:
         return await self._change_oauth_identity(user_id, provider, subject, issuer, expected_token_version, unlink=False)
 
-    async def unlink_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+    async def unlink_oauth_identity(
+        self,
+        user_id: str,
+        provider: str,
+        subject: str,
+        issuer: str,
+        expected_token_version: int,
+    ) -> User:
         return await self._change_oauth_identity(user_id, provider, subject, issuer, expected_token_version, unlink=True)

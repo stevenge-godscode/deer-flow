@@ -3,7 +3,11 @@
 import logging
 
 from app.gateway.auth.models import User
-from app.gateway.auth.password import hash_password_async, needs_rehash, verify_password_async
+from app.gateway.auth.password import (
+    hash_password_async,
+    needs_rehash,
+    verify_password_async,
+)
 from app.gateway.auth.providers import AuthProvider
 from app.gateway.auth.repositories.base import UserRepository
 
@@ -54,7 +58,11 @@ class LocalAuthProvider(AuthProvider):
             except Exception:
                 # Rehash is an opportunistic upgrade; a transient DB error must not
                 # prevent an otherwise-valid login from succeeding.
-                logger.warning("Failed to rehash password for user %s; login will still succeed", user.email, exc_info=True)
+                logger.warning(
+                    "Failed to rehash password for user %s; login will still succeed",
+                    user.email,
+                    exc_info=True,
+                )
 
         return user
 
@@ -62,7 +70,13 @@ class LocalAuthProvider(AuthProvider):
         """Get user by ID."""
         return await self._repo.get_user_by_id(user_id)
 
-    async def create_user(self, email: str, password: str | None = None, system_role: str = "user", needs_setup: bool = False) -> User:
+    async def create_user(
+        self,
+        email: str,
+        password: str | None = None,
+        system_role: str = "user",
+        needs_setup: bool = False,
+    ) -> User:
         """Create a new local user.
 
         Args:
@@ -105,7 +119,7 @@ class LocalAuthProvider(AuthProvider):
 
     async def create_oauth_user(
         self,
-        email: str,
+        email: str | None,
         oauth_provider: str,
         oauth_id: str,
         system_role: str = "user",
@@ -131,8 +145,22 @@ class LocalAuthProvider(AuthProvider):
         )
         return await self._repo.create_user(user)
 
-    async def link_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+    async def link_oauth_identity(
+        self,
+        user_id: str,
+        provider: str,
+        subject: str,
+        issuer: str,
+        expected_token_version: int,
+    ) -> User:
         return await self._repo.link_oauth_identity(user_id, provider, subject, issuer, expected_token_version)
 
-    async def unlink_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+    async def unlink_oauth_identity(
+        self,
+        user_id: str,
+        provider: str,
+        subject: str,
+        issuer: str,
+        expected_token_version: int,
+    ) -> User:
         return await self._repo.unlink_oauth_identity(user_id, provider, subject, issuer, expected_token_version)

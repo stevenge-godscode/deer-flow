@@ -19,6 +19,10 @@ from deerflow.config.auth_config import OIDCProviderConfig
 logger = logging.getLogger(__name__)
 
 
+def has_trusted_non_email_proof(config: OIDCProviderConfig, identity: OIDCIdentity) -> bool:
+    return bool(identity.authenticated_provider and identity.authenticated_provider in config.trusted_non_email_providers)
+
+
 async def get_or_provision_oidc_user(
     provider_id: str,
     provider_config: OIDCProviderConfig,
@@ -41,22 +45,28 @@ async def get_or_provision_oidc_user(
         return {"user": existing, "created": False}
 
     # 2. Verified email requirement
-    if provider_config.require_verified_email and not identity.email_verified:
+    trusted_non_email = has_trusted_non_email_proof(provider_config, identity)
+    if provider_config.require_verified_email and not identity.email_verified and not trusted_non_email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=("Your email could not be verified by the identity provider. Please contact your administrator."),
         )
 
-    if not identity.email:
+    if not identity.email and not trusted_non_email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="The identity provider did not provide an email address.",
         )
 
-    email = identity.email.lower()
+    email = identity.email.lower() if identity.email and (not trusted_non_email or identity.email_verified) else None
 
     # 3. Domain restriction
     if provider_config.allowed_email_domains:
+        if email is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Verified email is required by the application domain policy",
+            )
         domain = email.rsplit("@", 1)[-1]
         if domain not in {d.lower().lstrip("@") for d in provider_config.allowed_email_domains}:
             raise HTTPException(
@@ -67,7 +77,7 @@ async def get_or_provision_oidc_user(
     # 4. Block if a local account already owns this email. We never auto-link an
     # SSO identity onto a pre-existing local account, since that would let an SSO
     # login take over a password account that happens to share the email.
-    local_user = await local_provider.get_user_by_email(email)
+    local_user = await local_provider.get_user_by_email(email) if email is not None else None
 
     if local_user:
         raise HTTPException(
@@ -82,7 +92,7 @@ async def get_or_provision_oidc_user(
             detail="Automatic account creation is disabled. Contact your administrator.",
         )
 
-    role = _resolve_role(email, provider_config.admin_emails)
+    role = _resolve_role(email, provider_config.admin_emails) if email is not None else "user"
     try:
         user = await local_provider.create_oauth_user(
             email=email,

@@ -47,6 +47,7 @@ class OIDCIdentity:
     email_verified: bool
     name: str | None
     claims: dict[str, Any]
+    authenticated_provider: str | None = None
 
 
 class OIDCError(Exception):
@@ -425,6 +426,7 @@ class OIDCService:
             email_verified=email_verified,
             name=merged.get("name"),
             claims=merged,
+            authenticated_provider=claims.get("provider") if isinstance(claims.get("provider"), str) else None,
         )
 
 

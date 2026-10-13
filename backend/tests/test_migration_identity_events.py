@@ -14,7 +14,7 @@ PREVIOUS = "0025_repair_run_change_seq"
 def test_identity_migration_extends_single_existing_head(tmp_path):
     engine = create_async_engine("sqlite+aiosqlite:///" + str(tmp_path / "chain.sqlite"))
     script = ScriptDirectory.from_config(_get_alembic_config(engine))
-    assert script.get_heads() == [REVISION]
+    assert script.get_heads() == ["0027_optional_oidc_email"]
     assert script.get_revision(REVISION).down_revision == PREVIOUS
     assert len(REVISION) <= 32
     asyncio.run(engine.dispose())

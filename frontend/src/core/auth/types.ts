@@ -4,7 +4,7 @@ import { z } from "zod";
 
 export const userSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.string().email().nullable(),
   system_role: z.enum(["admin", "user"]),
   needs_setup: z.boolean().optional().default(false),
   oauth_provider: z.string().nullable().optional().default(null),
@@ -13,6 +13,10 @@ export const userSchema = z.object({
   // never resolved them — both are consumed as "permissive, unresolved", see
   // hasPermission() in ./permissions.
   permissions: z.array(z.string()).nullable().optional(),
+}).superRefine((user,ctx)=>{
+  if(user.email === null && (!user.oauth_provider || user.system_role !== "user")){
+    ctx.addIssue({code:"custom",message:"Email-less accounts require an ordinary OAuth identity",path:["email"]});
+  }
 });
 
 export type User = Omit<z.infer<typeof userSchema>, "oauth_provider"> & {
