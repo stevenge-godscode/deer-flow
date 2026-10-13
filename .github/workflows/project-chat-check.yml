@@ -21,7 +21,8 @@ jobs:
       - name: Require approved CI outbound proxy before source/tool downloads
         shell: bash
         run: |
-          test -n "$HTTP_PROXY" && test -n "$HTTPS_PROXY"
+          test -n "$HTTP_PROXY"
+          test -n "$HTTPS_PROXY"
           git config --global http.proxy "$HTTPS_PROXY"
       - uses: actions/checkout@v6
         with:

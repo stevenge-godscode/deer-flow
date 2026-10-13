@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   check:
-    if: github.repository == 'stevenge-godscode/deer-flow'
+    if: github.repository == 'stevenge-godscode/deer-flow' && vars.GENESIS_CI_HTTP_PROXY != '' && vars.GENESIS_CI_HTTPS_PROXY != ''
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -22,7 +22,8 @@ jobs:
     steps:
       - name: Require approved proxy before source and dependency downloads
         run: |
-          test -n "$HTTP_PROXY" && test -n "$HTTPS_PROXY"
+          test -n "$HTTP_PROXY"
+          test -n "$HTTPS_PROXY"
           printf "http_proxy=%s\nhttps_proxy=%s\nno_proxy=%s\n" "$HTTP_PROXY" "$HTTPS_PROXY" "$NO_PROXY" >> "$GITHUB_ENV"
           git config --global http.proxy "$HTTPS_PROXY"
       - uses: actions/checkout@v6
