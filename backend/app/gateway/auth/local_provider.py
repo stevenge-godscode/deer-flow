@@ -130,3 +130,9 @@ class LocalAuthProvider(AuthProvider):
             oauth_id=oauth_id,
         )
         return await self._repo.create_user(user)
+
+    async def link_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+        return await self._repo.link_oauth_identity(user_id, provider, subject, issuer, expected_token_version)
+
+    async def unlink_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+        return await self._repo.unlink_oauth_identity(user_id, provider, subject, issuer, expected_token_version)

@@ -1,0 +1,95 @@
+name: Genesis account lifecycle checks
+on:
+  push:
+    branches: [codex/issue-9-verified-account-link]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: genesis-account-check-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    if: github.repository == 'stevenge-godscode/deer-flow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HTTP_PROXY: ${{ vars.GENESIS_CI_HTTP_PROXY }}
+      HTTPS_PROXY: ${{ vars.GENESIS_CI_HTTPS_PROXY }}
+      http_proxy: ${{ vars.GENESIS_CI_HTTP_PROXY }}
+      https_proxy: ${{ vars.GENESIS_CI_HTTPS_PROXY }}
+      NO_PROXY: ${{ vars.GENESIS_CI_NO_PROXY }}
+      no_proxy: ${{ vars.GENESIS_CI_NO_PROXY }}
+      PNPM_MAX_WORKERS: '2'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Require approved proxy before source and dependency downloads
+        run: |
+          test -n "$HTTP_PROXY" && test -n "$HTTPS_PROXY"
+          git config --global http.proxy "$HTTPS_PROXY"
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Record accurate source and test dependency identities
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p .artifacts/account-check
+          git rev-parse HEAD > .artifacts/account-check/source-head.txt
+          sha256sum backend/uv.lock frontend/pnpm-lock.yaml > .artifacts/account-check/dependency-locks.txt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.11.1'
+      - name: Install locked backend development dependencies
+        working-directory: backend
+        run: uv sync --frozen --group dev --extra postgres
+      - name: Start isolated preinstalled PostgreSQL 17 and Redis
+        run: |
+          set -euo pipefail
+          test -x /usr/lib/postgresql/17/bin/initdb
+          command -v redis-server
+          sudo install -d -m 0755 -o postgres -g postgres "$RUNNER_TEMP/account-check-pg"
+          sudo -u postgres /usr/lib/postgresql/17/bin/initdb -D "$RUNNER_TEMP/account-check-pg" --auth=trust --no-locale > .artifacts/account-check/postgres-init.log
+          sudo -u postgres /usr/lib/postgresql/17/bin/pg_ctl -D "$RUNNER_TEMP/account-check-pg" -l "$RUNNER_TEMP/account-check-pg/server.log" -o "-c listen_addresses=127.0.0.1 -p 5432" start
+          /usr/lib/postgresql/17/bin/createdb -h 127.0.0.1 -U postgres deerflow_test
+          redis-server --bind 127.0.0.1 --port 6379 --daemonize yes
+          /usr/lib/postgresql/17/bin/postgres --version > .artifacts/account-check/postgres-version.txt
+          redis-server --version > .artifacts/account-check/redis-version.txt
+      - name: Backend default and blocking IO gates on exact source
+        working-directory: backend
+        env:
+          TEST_POSTGRES_URI: postgresql://postgres@127.0.0.1:5432/deerflow_test?sslmode=disable
+          DEERFLOW_TEST_POSTGRES_URL: postgresql+asyncpg://postgres@127.0.0.1:5432/deerflow_test
+          DEDUPE_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/deerflow_test?sslmode=disable
+        run: |
+          set -euo pipefail
+          uv run ruff check .
+          uv run ruff format --check .
+          make test > ../.artifacts/account-check/backend-default.log 2>&1
+          tail -n 12 ../.artifacts/account-check/backend-default.log
+          make test-blocking-io > ../.artifacts/account-check/backend-blocking-io.log 2>&1
+          tail -n 12 ../.artifacts/account-check/backend-blocking-io.log
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@10.26.2 --proxy "$HTTP_PROXY" --https-proxy "$HTTPS_PROXY"
+      - name: Frontend exact-source gate
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile --proxy "$HTTP_PROXY" --https-proxy "$HTTPS_PROXY"
+          pnpm exec next typegen
+          pnpm check
+          pnpm exec rstest run --pool.maxWorkers 2 --pool.minWorkers 1 > ../.artifacts/account-check/frontend-unit.log 2>&1
+          tail -n 16 ../.artifacts/account-check/frontend-unit.log
+      - run: python3 scripts/check_branding.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: genesis-account-check-${{ github.sha }}
+          path: .artifacts/account-check/
+          retention-days: 90

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/core/auth/AuthProvider";
+import { beginIdentityLink } from "@/core/auth/identity-link";
 import { resolveAuthNextPath } from "@/core/auth/next-path";
 import {
   loadRememberLoginPreference,
@@ -35,6 +36,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [isLogin, setIsLogin] = useState(true);
+  const [linkProvider, setLinkProvider] = useState<string | null>(null);
   const [ssoProviders, setSsoProviders] = useState<
     { id: string; display_name: string; type: string }[]
   >([]);
@@ -77,10 +79,10 @@ export default function LoginPage() {
 
   // Redirect if already authenticated (client-side, post-login)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !linkProvider) {
       router.push(redirectPath);
     }
-  }, [isAuthenticated, redirectPath, router]);
+  }, [isAuthenticated, linkProvider, redirectPath, router]);
 
   useEffect(() => {
     const preference = loadRememberLoginPreference();
@@ -155,6 +157,18 @@ export default function LoginPage() {
     }
 
     try {
+      if (linkProvider) {
+        const destination = await beginIdentityLink({
+          provider: linkProvider,
+          email,
+          password,
+          rememberMe,
+          next: redirectPath,
+        });
+        setPassword("");
+        window.location.assign(destination);
+        return;
+      }
       const endpoint = isLogin
         ? "/api/v1/auth/login/local"
         : "/api/v1/auth/register";
@@ -193,8 +207,8 @@ export default function LoginPage() {
 
       // Both login and register set a cookie — redirect to workspace
       router.push(redirectPath);
-    } catch {
-      setError(t.login.networkError);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t.login.networkError);
     } finally {
       setLoading(false);
     }
@@ -265,6 +279,11 @@ export default function LoginPage() {
           </div>
         )}
 
+        {linkProvider && (
+          <p className="text-muted-foreground text-sm" role="status">
+            {t.login.linkDescription}
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="space-y-2">
           <div className="flex flex-col space-y-1">
             <label htmlFor="email" className="text-sm font-medium">
@@ -304,9 +323,11 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading
               ? t.login.pleaseWait
-              : isLogin
-                ? t.login.signIn
-                : t.login.createAccount}
+              : linkProvider
+                ? t.login.linkContinue
+                : isLogin
+                  ? t.login.signIn
+                  : t.login.createAccount}
           </Button>
         </form>
 
@@ -330,18 +351,38 @@ export default function LoginPage() {
               </p>
             )}
             {ssoProviders.map((provider) => (
-              <Button
-                key={provider.id}
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loading}
-                onClick={() => {
-                  window.location.href = `/api/v1/auth/oauth/${provider.id}?next=${encodeURIComponent(redirectPath)}&remember_me=${String(rememberMe)}`;
-                }}
-              >
-                {t.login.continueWith(provider.display_name)}
-              </Button>
+              <div key={provider.id} className="space-y-2">
+                <Button
+                  key={provider.id}
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={loading}
+                  onClick={() => {
+                    window.location.href = `/api/v1/auth/oauth/${provider.id}?next=${encodeURIComponent(redirectPath)}&remember_me=${String(rememberMe)}`;
+                  }}
+                >
+                  {t.login.continueWith(provider.display_name)}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  disabled={loading}
+                  onClick={() => {
+                    setLinkProvider(
+                      linkProvider === provider.id ? null : provider.id,
+                    );
+                    setIsLogin(true);
+                    setError("");
+                    setPassword("");
+                  }}
+                >
+                  {linkProvider === provider.id
+                    ? t.login.linkCancel
+                    : t.login.linkExisting}
+                </Button>
+              </div>
             ))}
           </div>
         )}

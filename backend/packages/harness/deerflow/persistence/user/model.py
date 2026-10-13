@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String, text
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from deerflow.persistence.base import Base
@@ -94,3 +94,19 @@ class UserRow(Base):
             postgresql_where=text("oauth_provider IS NOT NULL AND oauth_id IS NOT NULL"),
         ),
     )
+
+
+class UserIdentityEventRow(Base):
+    """Account-owned durable identity lifecycle evidence; never passwords or tokens."""
+
+    __tablename__ = "user_identity_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    issuer: Mapped[str] = mapped_column(String(512), nullable=False)
+    subject: Mapped[str] = mapped_column(String(128), nullable=False)
+    event: Mapped[str] = mapped_column(String(16), nullable=False)
+    proof: Mapped[str] = mapped_column(String(32), nullable=False)
+    token_version: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
+    __table_args__ = (CheckConstraint("event IN ('link','unlink')", name="ck_identity_event_kind"), CheckConstraint("token_version > 0", name="ck_identity_event_version"))

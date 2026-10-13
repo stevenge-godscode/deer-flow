@@ -1530,6 +1530,11 @@ export const zhCN: Translations = {
     },
   },
   login: {
+    linkExisting: "关联已有账号",
+    linkContinue: "验证旧账号并继续关联",
+    linkCancel: "取消关联",
+    linkDescription:
+      "输入旧账号的邮箱和密码，再验证 Genesis 统一身份。关联保留原账号和已有内容；不会仅凭邮箱合并账号。",
     signInTitle: "登录你的账号",
     createAccountTitle: "创建新账号",
     email: "邮箱",
