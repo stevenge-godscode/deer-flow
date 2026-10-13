@@ -295,7 +295,7 @@ def _read_artifact_payload(actual_path: Path, path: str, download: bool) -> tupl
         raise HTTPException(status_code=400, detail=f"Path is not a file: {path}")
     mime_type, _ = mimetypes.guess_type(actual_path)
     # Active content / explicit download is streamed by FileResponse — no read here.
-    if download or _is_active_content_mime_type(mime_type):
+    if download or _is_active_content_mime_type(mime_type, actual_path):
         return ("file", mime_type)
     if mime_type and mime_type.startswith("text/"):
         return ("inline_file", mime_type)
@@ -395,7 +395,7 @@ async def get_artifact(thread_id: ThreadId, path: str, request: Request, downloa
         # Add cache headers to avoid repeated ZIP extraction (cache for 5 minutes)
         cache_headers = {"Cache-Control": "private, max-age=300"}
         download_name = Path(internal_path).name or actual_skill_path.stem
-        if download or _is_active_content_mime_type(mime_type):
+        if download or _is_active_content_mime_type(mime_type, download_name):
             return Response(content=content, media_type=mime_type or "application/octet-stream", headers=_build_attachment_headers(download_name, cache_headers))
 
         # Archive members are already bounded during extraction. Preserve byte

@@ -13,15 +13,15 @@ construct this after ``init_engine_from_config()`` has run.
 from __future__ import annotations
 
 from datetime import UTC
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.gateway.auth.models import User
 from app.gateway.auth.repositories.base import UserNotFoundError, UserRepository
-from deerflow.persistence.user.model import OAUTH_IDENTITY_INDEX_NAME, UserRow
+from deerflow.persistence.user.model import OAUTH_IDENTITY_INDEX_NAME, UserIdentityEventRow, UserRow
 
 # ``email`` is ``mapped_column(unique=True, index=True)``, which SQLAlchemy
 # (and 0001_baseline) realise as a single UNIQUE INDEX -- not a named UNIQUE
@@ -295,3 +295,36 @@ class SQLiteUserRepository(UserRepository):
             result = await session.execute(stmt)
             row = result.scalar_one_or_none()
             return self._row_to_user(row) if row is not None else None
+
+    async def _change_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int, *, unlink: bool) -> User:
+        if not 0 < len(provider) <= 32 or not 0 < len(subject) <= 128 or not 0 < len(issuer) <= 512 or expected_token_version < 0:
+            raise ValueError("Invalid identity binding")
+        query = update(UserRow).where(UserRow.id == user_id, UserRow.system_role == "user", UserRow.password_hash.is_not(None), UserRow.password_hash != "", UserRow.token_version == expected_token_version)
+        if unlink:
+            query = query.where(UserRow.oauth_provider == provider, UserRow.oauth_id == subject).values(oauth_provider=None, oauth_id=None)
+        else:
+            query = query.where(UserRow.oauth_provider.is_(None), UserRow.oauth_id.is_(None)).values(oauth_provider=provider, oauth_id=subject)
+        query = query.values(token_version=UserRow.token_version + 1).returning(UserRow)
+        async with self._sf() as session:
+            try:
+                row = (await session.scalars(query)).one_or_none()
+                if row is None:
+                    raise ValueError("Account or binding changed; prove ownership again")
+                session.add(
+                    UserIdentityEventRow(
+                        id=str(uuid4()), user_id=user_id, provider=provider, issuer=issuer, subject=subject, event="unlink" if unlink else "link", proof="password" if unlink else "password+oidc", token_version=row.token_version
+                    )
+                )
+                await session.commit()
+                return self._row_to_user(row)
+            except IntegrityError as exc:
+                await session.rollback()
+                if _is_oauth_identity_violation(exc):
+                    raise ValueError("Identity already belongs to an account") from None
+                raise
+
+    async def link_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+        return await self._change_oauth_identity(user_id, provider, subject, issuer, expected_token_version, unlink=False)
+
+    async def unlink_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+        return await self._change_oauth_identity(user_id, provider, subject, issuer, expected_token_version, unlink=True)

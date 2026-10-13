@@ -12,7 +12,7 @@ import time
 
 import jwt
 from fastapi import Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.gateway.auth.config import get_auth_config
 from app.gateway.csrf_middleware import is_secure_request
@@ -33,7 +33,15 @@ class OIDCStatePayload(BaseModel):
     code_verifier: str | None = Field(default=None, description="PKCE code verifier, sent during token exchange")
     next_path: str = Field(default="/workspace", description="Redirect target after successful auth")
     remember_me: bool = Field(default=True, description="Whether the resulting DeerFlow session should be persistent")
+    link_user_id: str | None = Field(default=None, description="Server-derived password-proven link target")
+    link_token_version: int | None = Field(default=None, ge=0, description="Revoke link intent when target session changes")
     issued_at: float = Field(default_factory=time.time, description="Unix timestamp of cookie creation")
+
+    @model_validator(mode="after")
+    def paired_link_proof(self):
+        if (self.link_user_id is None) != (self.link_token_version is None):
+            raise ValueError("Identity association proof must be complete")
+        return self
 
 
 def _sign_state_payload(payload: OIDCStatePayload) -> str:
@@ -48,10 +56,10 @@ def _verify_state_signed(signed: str, max_age: int = OIDC_STATE_MAX_AGE) -> OIDC
     try:
         decoded = jwt.decode(signed, secret, algorithms=["HS256"])
         payload = OIDCStatePayload(**decoded)
-        if time.time() - payload.issued_at > max_age:
+        if not 0 <= time.time() - payload.issued_at <= max_age:
             return None
         return payload
-    except jwt.PyJWTError:
+    except (jwt.PyJWTError, ValidationError):
         return None
 
 
@@ -108,7 +116,8 @@ def get_state_cookie(request: Request, provider: str) -> OIDCStatePayload | None
     signed = request.cookies.get(_cookie_name(provider))
     if not signed:
         return None
-    return _verify_state_signed(signed)
+    payload = _verify_state_signed(signed)
+    return payload if payload is not None and payload.provider == provider else None
 
 
 def delete_state_cookie(response: Response, request: Request, provider: str) -> None:

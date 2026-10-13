@@ -1294,6 +1294,10 @@ export interface Translations {
 
   // Login / Auth
   login: {
+    linkExisting: string;
+    linkContinue: string;
+    linkCancel: string;
+    linkDescription: string;
     signInTitle: string;
     createAccountTitle: string;
     email: string;

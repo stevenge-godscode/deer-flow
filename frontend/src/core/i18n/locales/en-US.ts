@@ -1622,6 +1622,11 @@ export const enUS: Translations = {
     },
   },
   login: {
+    linkExisting: "Link an existing account",
+    linkContinue: "Verify existing account and continue",
+    linkCancel: "Cancel account linking",
+    linkDescription:
+      "Enter your existing account email and password, then verify your Genesis identity. Linking keeps the original account and content; matching emails alone never merge accounts.",
     signInTitle: "Sign in to your account",
     createAccountTitle: "Create a new account",
     email: "Email",

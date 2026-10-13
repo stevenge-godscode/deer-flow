@@ -24,7 +24,7 @@ The empty-DB path keeps using `create_all` because `Base.metadata` is the only a
 `0020_threads_meta_project_id` → `0021_batch_acceptance` →
 `0019_thread_incarnations` → `0022_scheduled_occurrence_seq` →
 `0023_run_change_seq` → `0023_user_preferences` →
-`0024_project_documents` → `0025_repair_run_change_seq` (current head). The preference
+`0024_project_documents` → `0025_repair_run_change_seq` → `0026_user_identity_events` (current head). The preference
 revision adds a separate owner/key table with a cascading users foreign key and
 does not alter users; the project-documents revision adds a new owner-scoped
 shelf table, so the bootstrap forward-compat floor is unchanged.
@@ -165,3 +165,8 @@ on installs that never enabled it. The convention is:
 - `persistence/bootstrap.py` — `bootstrap_schema(engine, backend=...)`, the three-branch provisioning decision, locked revision validation, and the narrow 0019 forward-compatibility exception
 - `extensions/loader.py::load_extensions` — registers each spec's `table_prefix` with `register_extension_table_prefix()`
 - Tests: `tests/test_persistence_bootstrap.py` (branches), `tests/test_persistence_bootstrap_concurrency.py` (concurrency), `tests/test_persistence_bootstrap_regression.py` (issue #3682), `tests/test_persistence_migrations_env.py` (filter, including extension-owned tables), `tests/test_extension_loader.py::TestTablePrefixRegistration` (spec-to-filter wiring), `tests/blocking_io/test_persistence_bootstrap.py` (asyncio.to_thread anchor), `tests/test_migration_0004_run_ownership_dedupe.py` + `tests/test_migration_0007_scheduled_run_active_dedupe.py` (dedupe-before-unique-index pre-steps), `tests/test_migration_0025_repair_run_change_seq.py` (issue #5516 skipped-revision heal)
+
+
+### Identity association evidence (0026)
+
+`0026_user_identity_events` adds the account-owned link/unlink audit table without changing user IDs, hashes or resource ownership. Rollback keeps the audit table and restores the prior known revision stamp; stop all gateway writers and take a verified database backup before this explicit rollback. Re-upgrade validates and reuses the retained table. Older binaries fail closed on unknown stamps, so changing only the image is insufficient after upgrade. The SQLite migration regression proves predecessor upgrade, evidence retention, old-column reads/writes and re-upgrade; target PostgreSQL acceptance remains separately required.

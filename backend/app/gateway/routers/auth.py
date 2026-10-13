@@ -11,8 +11,8 @@ from ipaddress import ip_address, ip_network
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from starlette.responses import RedirectResponse
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
+from starlette.responses import JSONResponse, RedirectResponse
 
 from app.gateway.auth import (
     UserResponse,
@@ -20,6 +20,7 @@ from app.gateway.auth import (
 )
 from app.gateway.auth.config import get_auth_config
 from app.gateway.auth.errors import AuthErrorCode, AuthErrorResponse
+from app.gateway.auth.identity_linking import link_verified_oidc_identity
 from app.gateway.auth.oidc import OIDCError, OIDCService
 from app.gateway.auth.oidc_state import (
     OIDCStatePayload,
@@ -904,12 +905,13 @@ async def list_auth_providers():
     return {"providers": providers}
 
 
-@router.get("/oauth/{provider}")
-async def oauth_login(
+async def _oauth_login_redirect(
     request: Request,
     provider: str,
-    next: str | None = None,  # noqa: A002 (shadowing built-in is intentional — this is the query param name)
+    next: str | None = None,  # noqa: A002
     remember_me: bool = True,
+    *,
+    link_user=None,
 ):
     """Initiate OIDC login flow.
 
@@ -919,7 +921,7 @@ async def oauth_login(
     """
     from deerflow.config.app_config import get_app_config
 
-    app_config = get_app_config()
+    app_config = await asyncio.to_thread(get_app_config)
     oidc_config = app_config.auth.oidc
 
     if not oidc_config.enabled:
@@ -976,11 +978,88 @@ async def oauth_login(
         code_verifier=code_verifier,
         next_path=redirect_path,
         remember_me=remember_me,
+        link_user_id=str(link_user.id) if link_user else None,
+        link_token_version=link_user.token_version if link_user else None,
     )
-    redirect_response = RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
+    redirect_response = JSONResponse({"authorization_url": auth_url}) if link_user else RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
     set_state_cookie(redirect_response, request, state_payload)
 
     return redirect_response
+
+
+@router.get("/oauth/{provider}")
+async def oauth_login(request: Request, provider: str, next: str | None = None, remember_me: bool = True):  # noqa: A002
+    return await _oauth_login_redirect(request, provider, next, remember_me)
+
+
+class IdentityLinkRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: SecretStr = Field(min_length=1, max_length=1024)
+    next: str | None = None
+    remember_me: bool = True
+
+
+async def _password_proven_link_user(request: Request, body: IdentityLinkRequest):
+    from app.gateway.auth.password import verify_password_async
+    from app.gateway.auth_disabled import AUTH_SOURCE_SESSION
+    from app.gateway.csrf_middleware import is_allowed_auth_origin
+
+    # These public OAuth paths deliberately validate a native session themselves.
+    # A PAT, service credential, or auth-disabled stamped user is never proof.
+    if request.headers.get("authorization") or not request.cookies.get(ACCESS_TOKEN_COOKIE_NAME) or getattr(request.state, "auth_source", None) not in (None, AUTH_SOURCE_SESSION):
+        raise HTTPException(status_code=401, detail="A local browser session is required")
+    if not request.headers.get("origin") or not is_allowed_auth_origin(request):
+        raise HTTPException(status_code=403, detail="Same-origin account ownership proof is required")
+    user = await get_current_user_from_request(request)
+    fresh = await get_local_provider().get_user(str(user.id))
+    if fresh is None or fresh.token_version != user.token_version:
+        raise HTTPException(status_code=401, detail="Session changed; sign in again")
+    if fresh.system_role != "user" or not fresh.password_hash:
+        raise HTTPException(status_code=403, detail="An ordinary account with a password login is required")
+    client_ip = _get_client_ip(request)
+    await _check_rate_limit(client_ip)
+    if not await verify_password_async(body.password.get_secret_value(), fresh.password_hash):
+        await _record_login_failure(client_ip)
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    _record_login_success(client_ip)
+    return fresh
+
+
+@router.post("/oauth/{provider}/link")
+async def oauth_link_start(request: Request, provider: str, body: IdentityLinkRequest):
+    from deerflow.config.app_config import get_app_config
+
+    oidc = (await asyncio.to_thread(get_app_config)).auth.oidc
+    if not oidc.enabled or not _OIDC_PROVIDER_KEY_RE.match(provider) or provider not in oidc.providers:
+        raise HTTPException(status_code=400, detail="Unknown SSO provider")
+    user = await _password_proven_link_user(request, body)
+    if user.oauth_provider or user.oauth_id:
+        raise HTTPException(status_code=409, detail="This account is already linked")
+    return await _oauth_login_redirect(request, provider, body.next, body.remember_me, link_user=user)
+
+
+@router.post("/oauth/{provider}/unlink", status_code=204)
+async def oauth_unlink(request: Request, provider: str, body: IdentityLinkRequest):
+    from deerflow.config.app_config import get_app_config
+
+    oidc = (await asyncio.to_thread(get_app_config)).auth.oidc
+    cfg = oidc.providers.get(provider) if oidc.enabled else None
+    if cfg is None or not _OIDC_PROVIDER_KEY_RE.match(provider):
+        raise HTTPException(status_code=400, detail="Unknown SSO provider")
+    user = await _password_proven_link_user(request, body)
+    if user.oauth_provider != provider or not user.oauth_id:
+        raise HTTPException(status_code=409, detail="This identity is not linked to your account")
+    try:
+        await get_local_provider().unlink_oauth_identity(str(user.id), provider, user.oauth_id, cfg.issuer, user.token_version)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Account binding changed; sign in again") from None
+    setattr(request.state, SKIP_AUTH_CSRF_COOKIE_STATE_ATTR, True)
+    response = Response(status_code=204)
+    secure = is_secure_request(request)
+    response.delete_cookie(ACCESS_TOKEN_COOKIE_NAME, secure=secure, samesite="lax")
+    response.delete_cookie(SESSION_PERSISTENCE_COOKIE_NAME, secure=secure, samesite="lax")
+    response.delete_cookie(CSRF_COOKIE_NAME, secure=secure, samesite="strict")
+    return response
 
 
 @router.get("/callback/{provider}")
@@ -1001,7 +1080,7 @@ async def oauth_callback(
     """
     from deerflow.config.app_config import get_app_config
 
-    app_config = get_app_config()
+    app_config = await asyncio.to_thread(get_app_config)
     oidc_config = app_config.auth.oidc
 
     # ── Provider error ───────────────────────────────────────────────
@@ -1068,16 +1147,25 @@ async def oauth_callback(
 
     # ── Provision / link user ────────────────────────────────────────
     try:
-        result = await get_or_provision_oidc_user(provider, provider_config, identity, get_local_provider())
+        if state_payload.link_user_id is not None:
+            if request.headers.get("authorization") or not request.cookies.get(ACCESS_TOKEN_COOKIE_NAME):
+                raise HTTPException(status_code=403, detail="Local session ownership proof is missing")
+            current_user = await get_current_user_from_request(request)
+            linked = await link_verified_oidc_identity(provider, provider_config, identity, get_local_provider(), state_payload, current_user)
+            result = {"user": linked, "created": False}
+        else:
+            result = await get_or_provision_oidc_user(provider, provider_config, identity, get_local_provider())
     except HTTPException as exc:
         error_map = {
             status.HTTP_403_FORBIDDEN: "sso_not_allowed",
             status.HTTP_409_CONFLICT: "sso_account_exists",
         }
         error_code = error_map.get(exc.status_code, "sso_failed")
-        logger.warning("OIDC user provisioning failed for %s (%s): %s", identity.email, provider, exc.detail)
+        logger.warning("OIDC account resolution failed for provider %s (status=%s)", provider, exc.status_code)
         redirect = _build_error_redirect(oidc_config.frontend_base_url, error_code)
-        return RedirectResponse(url=redirect, status_code=status.HTTP_302_FOUND)
+        response = RedirectResponse(url=redirect, status_code=status.HTTP_302_FOUND)
+        delete_state_cookie(response, request, provider)
+        return response
 
     user = result["user"]
 
