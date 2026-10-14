@@ -1294,6 +1294,10 @@ export interface Translations {
 
   // Login / Auth
   login: {
+    workspaceTitle: string;
+    unifiedSignIn: string;
+    passwordSignIn: string;
+    otherMethods: string;
     linkExisting: string;
     linkContinue: string;
     linkCancel: string;

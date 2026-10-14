@@ -1959,3 +1959,7 @@ Memory-limited DEV containers can set `DEER_FLOW_DEV_LOW_MEMORY=1` to reduce Web
 Browser-hosted native TUI integration: [authenticated browser workbench](backend/browser_tui/README.md).
 
 Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.
+
+## Genesis 登录入口
+
+配置统一登录后，工作台首先显示统一登录入口；邮箱密码与已有账号关联按需展开。错误保持可见，“保持登录”只显示一次。未设置语言时默认中文，已明确选择的语言保持原偏好。账号关联和应用授权沿用既有验证。

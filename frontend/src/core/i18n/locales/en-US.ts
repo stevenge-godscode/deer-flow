@@ -1622,11 +1622,15 @@ export const enUS: Translations = {
     },
   },
   login: {
+    workspaceTitle: "Agent workspace",
+    unifiedSignIn: "Sign in",
+    passwordSignIn: "Email and password",
+    otherMethods: "Other sign-in methods",
+
     linkExisting: "Link an existing account",
     linkContinue: "Verify existing account and continue",
     linkCancel: "Cancel account linking",
-    linkDescription:
-      "Enter your existing account email and password, then verify your Genesis identity. Linking keeps the original account and content; matching emails alone never merge accounts.",
+    linkDescription: "Verify your existing account to continue linking.",
     signInTitle: "Sign in to your account",
     createAccountTitle: "Create a new account",
     email: "Email",
@@ -1634,8 +1638,7 @@ export const enUS: Translations = {
     password: "Password",
     passwordPlaceholder: "•••••••",
     rememberMe: "Keep me signed in",
-    rememberMeDescription:
-      "Keep this browser session when possible. DeerFlow stores only your email, never your password.",
+    rememberMeDescription: "Keep this browser signed in.",
     pleaseWait: "Please wait...",
     signIn: "Sign In",
     createAccount: "Create Account",
@@ -1644,8 +1647,7 @@ export const enUS: Translations = {
     adminSetupRequiredDescription:
       "DeerFlow needs an administrator account before new regular accounts can be created.",
     orContinueWith: "Or continue with",
-    ssoHint:
-      "If your account uses single sign-on, sign in with the option below instead.",
+    ssoHint: "Try the unified sign-in option.",
     continueWith: (provider: string) => `Continue with ${provider}`,
     noAccountSignUp: "Don't have an account? Sign up",
     haveAccountSignIn: "Already have an account? Sign in",
