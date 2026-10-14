@@ -1628,8 +1628,8 @@ export const enUS: Translations = {
     otherMethods: "Other sign-in methods",
 
     linkExisting: "Link an existing account",
-    linkContinue: "Verify existing account and continue",
-    linkCancel: "Cancel account linking",
+    linkContinue: "Verify and link",
+    linkCancel: "Back to sign in",
     linkDescription: "Verify your existing account to continue linking.",
     signInTitle: "Sign in to your account",
     createAccountTitle: "Create a new account",
@@ -1659,12 +1659,11 @@ export const enUS: Translations = {
     retry: "Try again",
     authFailed: "Authentication failed.",
     errors: {
-      sso_failed: "SSO login failed. Please try again or use email login.",
-      sso_cancelled: "SSO login was cancelled.",
-      sso_account_exists:
-        "An account with this email already exists. Please sign in with your password or contact your administrator.",
+      sso_failed: "Sign-in failed. Please try again.",
+      sso_cancelled: "Sign-in cancelled.",
+      sso_account_exists: "Sign in or link your existing account.",
       sso_not_allowed:
-        "SSO login is not allowed for your account. Contact your administrator.",
+        "This account cannot sign in. Contact your administrator.",
     },
   },
 };

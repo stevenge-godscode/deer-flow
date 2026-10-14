@@ -1536,8 +1536,8 @@ export const zhCN: Translations = {
     otherMethods: "其他登录方式",
 
     linkExisting: "关联已有账号",
-    linkContinue: "验证旧账号并继续关联",
-    linkCancel: "取消关联",
+    linkContinue: "验证并关联",
+    linkCancel: "返回登录",
     linkDescription: "验证已有账号后继续关联。",
     signInTitle: "登录你的账号",
     createAccountTitle: "创建新账号",
@@ -1567,11 +1567,10 @@ export const zhCN: Translations = {
     retry: "重试",
     authFailed: "身份验证失败。",
     errors: {
-      sso_failed: "SSO 登录失败，请重试或使用邮箱登录。",
-      sso_cancelled: "SSO 登录已取消。",
-      sso_account_exists:
-        "该邮箱对应的账号已存在。请使用密码登录或联系管理员。",
-      sso_not_allowed: "你的账号不允许使用 SSO 登录。请联系管理员。",
+      sso_failed: "登录失败，请重试。",
+      sso_cancelled: "已取消登录。",
+      sso_account_exists: "请使用已有账号登录或关联。",
+      sso_not_allowed: "当前账号无法登录，请联系管理员。",
     },
   },
 };
