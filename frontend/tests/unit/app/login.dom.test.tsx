@@ -42,15 +42,13 @@ beforeEach(() => {
   mocks.error = null;
   rs.stubGlobal(
     "fetch",
-    rs
-      .fn()
-      .mockResolvedValue({
-        json: async () => ({
-          providers: [
-            { id: "genesis-dev", display_name: "统一账号登录", type: "oidc" },
-          ],
-        }),
+    rs.fn().mockResolvedValue({
+      json: async () => ({
+        providers: [
+          { id: "genesis-dev", display_name: "统一账号登录", type: "oidc" },
+        ],
       }),
+    }),
   );
 });
 afterEach(() => {
@@ -74,17 +72,13 @@ describe("compact login choices (view tests, not real authentication)", () => {
     expect(screen.getByLabelText("邮箱")).toBeTruthy();
     expect(screen.getByLabelText("密码")).toBeTruthy();
     expect(screen.getAllByRole("checkbox").length).toBe(1);
-    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(
-      false,
-    );
+    expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "其他登录方式" }));
     expect(screen.queryByLabelText("邮箱")).toBeNull();
     expect(
       screen.getAllByRole("button", { name: "登录", exact: true }).length,
     ).toBe(1);
-    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(
-      false,
-    );
+    expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
   });
   it("existing-account linking shows only verification and a return option", async () => {
     render(<LoginPage />);
