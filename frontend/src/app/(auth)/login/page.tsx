@@ -294,7 +294,8 @@ export default function LoginPage() {
         {providersLoaded &&
           ssoProviders.length > 0 &&
           !linkProvider &&
-          isLogin && (
+          isLogin &&
+          !passwordLoginVisible && (
             <div className="space-y-2">
               {ssoProviders.map((provider) => (
                 <Button
@@ -314,7 +315,7 @@ export default function LoginPage() {
             </div>
           )}
         {!providersLoaded && <p role="status">{t.login.pleaseWait}</p>}
-        {providersLoaded && (
+        {providersLoaded && !passwordLoginVisible && (
           <RememberSessionOption
             checked={rememberMe}
             onCheckedChange={setRememberMe}
@@ -355,6 +356,11 @@ export default function LoginPage() {
                 minLength={isLogin ? 6 : 8}
               />
             </div>
+
+            <RememberSessionOption
+              checked={rememberMe}
+              onCheckedChange={setRememberMe}
+            />
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading
