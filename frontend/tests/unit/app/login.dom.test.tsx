@@ -59,25 +59,19 @@ describe("compact login choices (view tests, not real authentication)", () => {
   it("shows one primary action and keeps session preference across method changes", async () => {
     render(<LoginPage />);
     await waitFor(() =>
-      expect(
-        screen.getAllByRole("button", { name: "登录", exact: true }).length,
-      ).toBe(1),
+      expect(screen.getAllByRole("button", { name: "登录" }).length).toBe(1),
     );
     expect(screen.queryByLabelText("邮箱")).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: "保持登录" }));
     fireEvent.click(screen.getByRole("button", { name: "邮箱密码登录" }));
-    expect(
-      screen.getAllByRole("button", { name: "登录", exact: true }).length,
-    ).toBe(1);
+    expect(screen.getAllByRole("button", { name: "登录" }).length).toBe(1);
     expect(screen.getByLabelText("邮箱")).toBeTruthy();
     expect(screen.getByLabelText("密码")).toBeTruthy();
     expect(screen.getAllByRole("checkbox").length).toBe(1);
     expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "其他登录方式" }));
     expect(screen.queryByLabelText("邮箱")).toBeNull();
-    expect(
-      screen.getAllByRole("button", { name: "登录", exact: true }).length,
-    ).toBe(1);
+    expect(screen.getAllByRole("button", { name: "登录" }).length).toBe(1);
     expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
   });
   it("existing-account linking shows only verification and a return option", async () => {
@@ -87,18 +81,14 @@ describe("compact login choices (view tests, not real authentication)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "关联已有账号" }));
     expect(screen.getByRole("button", { name: "验证并关联" })).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "登录", exact: true }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
     expect(screen.getAllByRole("checkbox").length).toBe(1);
   });
   it("a callback failure stays visible when the password form is collapsed", async () => {
     mocks.error = "sso_failed";
     render(<LoginPage />);
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "登录", exact: true }),
-      ).toBeTruthy(),
+      expect(screen.getByRole("button", { name: "登录" })).toBeTruthy(),
     );
     expect(screen.getByRole("alert").textContent).toBe("登录失败，请重试。");
     expect(screen.queryByLabelText("密码")).toBeNull();
