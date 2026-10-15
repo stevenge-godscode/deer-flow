@@ -1963,3 +1963,10 @@ Genesis business branding is isolated in branding/, frontend/src/core/branding/ 
 ## Genesis 登录入口
 
 配置统一登录后，工作台首先显示统一登录入口；邮箱密码与已有账号关联按需展开。错误保持可见，“保持登录”只显示一次。未设置语言时默认中文，已明确选择的语言保持原偏好。账号关联和应用授权沿用既有验证。
+
+
+Genesis phone login can enroll ordinary accounts without an email when the OIDC
+provider configuration explicitly enables `allow_verified_phone` and requests the
+`phone` scope. Only a strictly verified phone claim from the signed ID token is
+accepted; userinfo fields, phone strings, and display names cannot associate
+accounts. Existing `(provider, subject)` identities retain their user and data.

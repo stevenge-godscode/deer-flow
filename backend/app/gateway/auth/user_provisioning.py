@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def has_trusted_non_email_proof(config: OIDCProviderConfig, identity: OIDCIdentity) -> bool:
-    return bool(identity.authenticated_provider and identity.authenticated_provider in config.trusted_non_email_providers)
+    return bool((identity.authenticated_provider and identity.authenticated_provider in config.trusted_non_email_providers) or (config.allow_verified_phone and identity.verified_phone))
 
 
 async def get_or_provision_oidc_user(

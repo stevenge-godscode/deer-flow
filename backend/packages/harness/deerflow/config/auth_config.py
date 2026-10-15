@@ -36,6 +36,10 @@ class OIDCProviderConfig(BaseModel):
         default=True,
         description="Reject authentication if the provider does not report the email as verified",
     )
+    allow_verified_phone: bool = Field(
+        default=False,
+        description="Allow ordinary email-less onboarding from a verified ID-token phone claim; never grants admin rights",
+    )
     trusted_non_email_providers: list[str] = Field(
         default_factory=list,
         description="Explicit native login-source names extracted from a verified ID token; ordinary accounts only",
