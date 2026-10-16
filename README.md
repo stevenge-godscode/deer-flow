@@ -1955,3 +1955,16 @@ Your unwavering commitment and expertise have been the driving force behind Deer
 Within a project, use the Agents menu beside New chat to start a specialist conversation. New agent conversations keep their project membership from the first message; the agent chat New chat button preserves that project. An unavailable project blocks submission rather than creating an unassigned conversation.
 
 Memory-limited DEV containers can set `DEER_FLOW_DEV_LOW_MEMORY=1` to reduce Webpack memory use at the cost of recompilation speed. This setting does not change production builds.
+
+## Optional project and Agent capability admission
+
+Operators can compose the native authorization provider with
+`deerflow.authz.scoped:ScopedAuthorizationProvider`. Exact owner/project/Agent
+capabilities are intersected with central authorization both before tool
+assembly and at invocation. MCP capabilities include the actual server identity
+and a digest of its complete configuration. The operator policy is external to
+user-editable Agent/skill definitions; mount it read-only outside sandbox and
+user API paths. See [the scope contract](backend/docs/SCOPED_AUTHORIZATION.md).
+
+The Agent API now exposes the existing `memory_enabled` field on creation,
+updates and reads. Updating unrelated fields preserves its stored value.

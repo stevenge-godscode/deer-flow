@@ -54,7 +54,7 @@ from deerflow.agents.thread_state import get_thread_state_schema, normalize_midd
 from deerflow.authz.principal import build_principal_from_context
 from deerflow.authz.provider import AuthzDecision, AuthzRequest
 from deerflow.authz.runtime import resolve_authorization_provider
-from deerflow.authz.tool_filter import apply_tool_authorization
+from deerflow.authz.tool_filter import apply_tool_authorization, resolve_skill_authorization
 from deerflow.config.agents_config import load_agent_config, validate_agent_name
 from deerflow.config.app_config import AppConfig, get_app_config
 from deerflow.config.memory_config import should_use_memory_tools
@@ -568,12 +568,20 @@ def build_middlewares(
     from deerflow.agents.middlewares.skill_activation_middleware import SkillActivationMiddleware
 
     slash_source_owner_token = secrets.token_urlsafe(24)
+    skill_authorization_kwargs = {}
+    if getattr(authorization_provider, "requires_skill_authorization", False) is True:
+        skill_authorization_kwargs = {
+            "authorization_provider": authorization_provider,
+            "authorization_principal": build_principal_from_context(_get_runtime_config(config), default_role=resolved_app_config.authorization.default_role),
+        }
+
     middlewares.append(
         SkillActivationMiddleware(
             available_skills=available_skills,
             app_config=resolved_app_config,
             user_id=user_id,
             slash_source_owner_token=slash_source_owner_token,
+            **skill_authorization_kwargs,
         )
     )
 
@@ -595,6 +603,7 @@ def build_middlewares(
             app_config=resolved_app_config,
             user_id=user_id,
             slash_source_owner_token=slash_source_owner_token,
+            **skill_authorization_kwargs,
         )
     )
 
@@ -1036,6 +1045,12 @@ def _assemble_lead_agent(config: RunnableConfig, *, app_config: AppConfig) -> Le
         config["callbacks"] = [*existing, *tracing_callbacks]
 
     enabled_skills = _load_enabled_available_skills(available_skills, app_config=resolved_app_config, user_id=resolved_user_id)
+    initial_skill_names = [skill.name for skill in enabled_skills]
+    authorized_skill_names, skill_projection_required = resolve_skill_authorization(initial_skill_names, context=cfg, app_config=resolved_app_config)
+    if skill_projection_required or authorized_skill_names != initial_skill_names:
+        available_skills = set(authorized_skill_names)
+        enabled_skills = [skill for skill in enabled_skills if skill.name in available_skills]
+        config["metadata"]["available_skills"] = sorted(available_skills)
 
     # Build skill search setup (deferred skill discovery).
     # Controlled by skills.deferred_discovery — independent from tool_search.enabled.

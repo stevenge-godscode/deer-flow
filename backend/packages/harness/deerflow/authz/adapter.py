@@ -63,6 +63,8 @@ class GuardrailAuthorizationAdapter:
 
     def _infrastructure_decision(self, request: GuardrailRequest) -> GuardrailDecision | None:
         """Allow framework tools created from an already-filtered capability set."""
+        if getattr(self._provider, "requires_infrastructure_authorization", False) is True:
+            return None
         if request.tool_name not in self._infrastructure_tool_names:
             return None
         return GuardrailDecision(
@@ -81,6 +83,8 @@ class GuardrailAuthorizationAdapter:
                 "oauth_id": gr.oauth_id,
                 "channel_user_id": gr.channel_user_id,
                 "is_internal": gr.is_internal,
+                "agent_name": gr.agent_name,
+                "is_subagent": gr.is_subagent,
                 "authz_attributes": gr.authz_attributes,
             },
             default_role=self._default_role,
@@ -98,6 +102,8 @@ class GuardrailAuthorizationAdapter:
                 "is_subagent": gr.is_subagent,
                 "agent_id": gr.agent_id,
                 "timestamp": gr.timestamp,
+                "mcp_source": gr.mcp_source,
+                "is_mcp": gr.is_mcp,
             },
         )
 

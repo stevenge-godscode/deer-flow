@@ -17,6 +17,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
+from deerflow.authz.skills import is_skill_authorized
 from deerflow.runtime.secret_context import SKILL_TOOL_POLICY_DECISION_CONTEXT_KEY, read_slash_skill_source_path
 from deerflow.skills.storage import get_or_new_skill_storage, get_or_new_user_skill_storage
 from deerflow.skills.tool_policy import ALWAYS_AVAILABLE_BUILTIN_TOOL_NAMES, allowed_tool_names_for_skills
@@ -56,6 +57,8 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
         app_config: AppConfig | None = None,
         user_id: str | None = None,
         slash_source_owner_token: str,
+        authorization_provider=None,
+        authorization_principal=None,
     ) -> None:
         super().__init__()
         if not isinstance(slash_source_owner_token, str) or not slash_source_owner_token:
@@ -64,6 +67,8 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
         self._app_config = app_config
         self._user_id = user_id
         self._slash_source_owner_token = slash_source_owner_token
+        self._authorization_provider = authorization_provider
+        self._authorization_principal = authorization_principal
         self._decision_owner_token = secrets.token_urlsafe(24)
 
     def _storage(self) -> SkillStorage:
@@ -127,6 +132,8 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
                 continue
             if self._available_skills is not None and skill.name not in self._available_skills:
                 logger.warning("Active skill is outside the agent allowlist for allowed-tools policy: %s", path)
+                continue
+            if not is_skill_authorized(skill.name, self._authorization_provider, self._authorization_principal):
                 continue
             if skill.name in seen:
                 continue
@@ -196,6 +203,9 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
         resolved_policy = self._active_policy(request) if policy is None else policy
         _, paths = resolved_policy
         context = self._runtime_context(request)
+        # A cached active-skill decision cannot survive a live grant revocation.
+        if getattr(self._authorization_provider, "requires_skill_authorization", False) is True:
+            return self._allowed_names_for_paths(paths)
         decision = self._read_policy_decision(context, resolved_policy)
         if decision is not _MISSING_POLICY_DECISION:
             return decision

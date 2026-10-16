@@ -70,3 +70,27 @@ def apply_tool_authorization(
         fail_closed=authz_config.fail_closed,
     )
     return filtered, authorization_provider
+
+
+def resolve_skill_authorization(names: list[str], *, context: Mapping[str, Any], app_config: AppConfig) -> tuple[list[str], bool]:
+    """Return admitted names and whether a physical projection is mandatory."""
+    authz_config = app_config.authorization
+    if authz_config.enabled is not True:
+        return names, False
+    provider = resolve_authorization_provider(authz_config)
+    if getattr(provider, "requires_skill_authorization", False) is not True:
+        return names, False
+    try:
+        principal = build_principal_from_context(context, default_role=authz_config.default_role)
+        allowed = provider.filter_resources(principal, "skill", names)
+        if not isinstance(allowed, list) or any(not isinstance(name, str) for name in allowed):
+            return [], True
+        permitted = set(allowed)
+        return [name for name in names if name in permitted], True
+    except Exception:
+        return [], True
+
+
+def filter_skill_names(names: list[str], *, context: Mapping[str, Any], app_config: AppConfig) -> list[str]:
+    """Compatibility wrapper for callers that only need admitted names."""
+    return resolve_skill_authorization(names, context=context, app_config=app_config)[0]

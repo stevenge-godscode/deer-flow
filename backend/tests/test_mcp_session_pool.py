@@ -1450,12 +1450,16 @@ async def test_http_transport_tools_not_pooled():
     mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
     mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-    extensions_config = MagicMock()
-    extensions_config.get_enabled_mcp_servers.return_value = {
-        "myserver": MagicMock(type="http", url="http://localhost:8000/mcp", headers=None, command=None, args=[], env=None),
-        "playwright": MagicMock(type="stdio", command="npx", args=["-y", "@anthropic/mcp-server-playwright"], env=None, url=None, headers=None),
-    }
-    extensions_config.model_extra = {}
+    from deerflow.config.extensions_config import ExtensionsConfig
+
+    extensions_config = ExtensionsConfig.model_validate(
+        {
+            "mcpServers": {
+                "myserver": {"type": "http", "url": "http://localhost:8000/mcp"},
+                "playwright": {"type": "stdio", "command": "npx", "args": ["-y", "@anthropic/mcp-server-playwright"]},
+            }
+        }
+    )
 
     servers_config = {
         "myserver": {"transport": "http", "url": "http://localhost:8000/mcp"},
@@ -2779,8 +2783,16 @@ async def test_mcp_tools_routed_to_source_server_with_prefix_overlap():
         response_format="content_and_artifact",
     )
 
-    extensions_config = MagicMock()
-    extensions_config.model_extra = {}
+    from deerflow.config.extensions_config import ExtensionsConfig
+
+    extensions_config = ExtensionsConfig.model_validate(
+        {
+            "mcpServers": {
+                "web": {"type": "stdio", "command": "npx", "args": ["web"]},
+                "web_scraper": {"type": "stdio", "command": "npx", "args": ["scraper"]},
+            }
+        }
+    )
 
     # `web` is inserted before `web_scraper`, so a first-prefix-match mis-routes
     # `web_scraper_search` to `web`.

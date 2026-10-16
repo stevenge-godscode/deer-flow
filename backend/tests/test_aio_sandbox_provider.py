@@ -1821,3 +1821,39 @@ def test_deterministic_sandbox_id_matches_shared_identity():
 
     aio_mod = importlib.import_module("deerflow.community.aio_sandbox.aio_sandbox_provider")
     assert aio_mod.AioSandboxProvider._deterministic_sandbox_id("t-1", "u-1") == derive_sandbox_scope_token(user_id="u-1", thread_id="t-1")
+
+
+@pytest.mark.parametrize("scoped", [False, True])
+def test_scoped_skill_projection_does_not_inherit_user_integration_runtime_mounts(monkeypatch, scoped):
+    from deerflow.community.aio_sandbox import aio_sandbox_provider as aio_mod
+
+    provider = aio_mod.AioSandboxProvider.__new__(aio_mod.AioSandboxProvider)
+    monkeypatch.setattr(provider, "_configured_skills_container_path", lambda: "/mnt/skills")
+    monkeypatch.setattr(provider, "_get_thread_mounts", lambda *a, **k: [])
+    monkeypatch.setattr(provider, "_get_skills_mounts", lambda *a, **k: [])
+    monkeypatch.setattr(provider, "_thread_skill_projection_active", lambda *a: scoped)
+    monkeypatch.setattr(provider, "_get_user_skill_mounts", lambda **k: [])
+    mount = ("/synthetic/private/integration", "/synthetic-runtime", True)
+    runtime = MagicMock(return_value=[mount])
+    monkeypatch.setattr(provider, "_get_lark_cli_runtime_mounts", runtime)
+    assert provider._get_extra_mounts("thread-a", user_id="owner-a") == ([] if scoped else [mount])
+    assert runtime.call_count == (0 if scoped else 1)
+
+
+@pytest.mark.parametrize("scoped", [False, True])
+def test_scoped_projection_disables_implicit_integration_runtime_and_broker(monkeypatch, scoped):
+    from deerflow.community.aio_sandbox import aio_sandbox_provider as aio_mod
+
+    provider = aio_mod.AioSandboxProvider.__new__(aio_mod.AioSandboxProvider)
+    monkeypatch.setattr(provider, "_thread_skill_projection_active", lambda *a: scoped)
+    assert provider._allows_user_integration_runtime("thread-a", "owner-a") is (not scoped)
+
+
+def test_new_scoped_identity_cannot_adopt_old_restricted_runtime_mounts():
+    from deerflow.community.aio_sandbox.aio_sandbox_provider import AioSandboxProvider
+
+    seed = b"agent-skills-v2\0owner-a\0thread-a\0/mnt/skills"
+    old_restricted = hashlib.sha256(seed).hexdigest()[:16]
+    actual = AioSandboxProvider._policy_scoped_sandbox_id("thread-a", "owner-a", "/mnt/skills")
+    assert actual != old_restricted
+    assert actual != AioSandboxProvider._deterministic_sandbox_id("thread-a", "owner-a")

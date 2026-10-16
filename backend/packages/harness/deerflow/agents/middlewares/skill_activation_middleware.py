@@ -18,6 +18,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
+from deerflow.authz.skills import is_skill_authorized
 from deerflow.runtime.events.catalog import (
     MIDDLEWARE_SKILL_ACTIVATION_TAG,
     MIDDLEWARE_SKILL_SECRETS_TAG,
@@ -99,6 +100,8 @@ class SkillActivationMiddleware(AgentMiddleware):
         app_config: AppConfig | None = None,
         user_id: str | None = None,
         slash_source_owner_token: str,
+        authorization_provider=None,
+        authorization_principal=None,
     ) -> None:
         super().__init__()
         if not isinstance(slash_source_owner_token, str) or not slash_source_owner_token:
@@ -107,6 +110,8 @@ class SkillActivationMiddleware(AgentMiddleware):
         self._app_config = app_config
         self._user_id = user_id
         self._slash_source_owner_token = slash_source_owner_token
+        self._authorization_provider = authorization_provider
+        self._authorization_principal = authorization_principal
 
     def release_policy_parameters(self) -> dict[str, object]:
         return {
@@ -148,6 +153,9 @@ class SkillActivationMiddleware(AgentMiddleware):
         reference = parse_slash_skill_reference(text)
         if reference is None:
             return None
+
+        if not is_skill_authorized(reference.name, self._authorization_provider, self._authorization_principal):
+            return _ActivationResolution(failure_message=f"Skill `/{reference.name}` is not authorized for this run.")
 
         storage = self._storage()
         skills = storage.load_skills(enabled_only=False)
@@ -509,6 +517,8 @@ Follow this skill before choosing a general workflow. Load supporting resources 
         if require_autonomous and not skill.secrets_autonomous:
             return None
         if self._available_skills is not None and skill.name not in self._available_skills:
+            return None
+        if not is_skill_authorized(skill.name, self._authorization_provider, self._authorization_principal):
             return None
         return skill
 

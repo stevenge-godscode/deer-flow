@@ -101,6 +101,9 @@ class McpTaskToolCaller:
         inside the Agent run that carries the secrets, while status and cancel
         run after that run ended.
         """
+        from deerflow.authz.run_scope import require_background_capability_admission
+
+        await require_background_capability_admission()
         interceptors = self._submit_interceptors if request_scoped_headers else self._interceptors
         server_config = self._extensions_config.get_enabled_mcp_servers().get(server_name)
         if server_config is None:

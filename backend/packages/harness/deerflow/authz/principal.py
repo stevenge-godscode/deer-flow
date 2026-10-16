@@ -59,4 +59,6 @@ def build_principal_from_context(
         channel_user_id=context.get("channel_user_id"),
         is_internal=context.get("is_internal") is True,
         attributes=normalize_authz_attributes(context.get("authz_attributes")),
+        agent_name=context.get("agent_name"),
+        is_subagent=context.get("is_subagent") is True,
     )

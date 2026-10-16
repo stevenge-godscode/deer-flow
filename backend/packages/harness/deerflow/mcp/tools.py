@@ -915,7 +915,9 @@ async def get_mcp_tools() -> list[BaseTool]:
                         _VALID_MCP_TOOL_NAME.pattern,
                     )
                     continue
-                tag_mcp_tool(tool, server_name=source_name, transport=transport)
+                from deerflow.tools.mcp_metadata import mcp_configuration_digest
+
+                tag_mcp_tool(tool, server_name=source_name, transport=transport, configuration_digest=mcp_configuration_digest(server_cfg or servers_config[source_name]))
                 prefix = f"{source_name}_"
                 original_name = tool.name[len(prefix) :] if tool_name_prefix and tool.name.startswith(prefix) else tool.name
                 routing = resolve_effective_mcp_routing(server_cfg, original_name)

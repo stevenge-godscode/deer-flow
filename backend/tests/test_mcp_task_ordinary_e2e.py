@@ -187,3 +187,11 @@ async def test_status_tool_error_retries_with_detail_before_structured_failure_t
     assert failed["error"] == "report generation failed"
     assert failed["consecutive_poll_error_count"] == 0
     assert failed["next_poll_at"] is None
+
+
+@pytest.fixture(autouse=True)
+def _explicit_legacy_background_authorization(monkeypatch):
+    # These legacy transport/persistence tests exercise authorization-disabled
+    # mode explicitly. Scoped denial is tested through the real entry points in
+    # test_scoped_authorization.py, without this fixture.
+    monkeypatch.setattr("deerflow.authz.run_scope._background_authorization_config", lambda: SimpleNamespace(enabled=False))

@@ -279,3 +279,10 @@ async def test_durable_task_call_sends_one_authorization_header():
         )
 
     assert opened == {"authorization": "Bearer oauth-token"}
+
+
+@pytest.fixture(autouse=True)
+def _explicit_legacy_background_authorization(monkeypatch):
+    # Header canonicalization tests exercise the legacy unscoped transport.
+    # Separate scoped regressions require real admission and deny before I/O.
+    monkeypatch.setattr("deerflow.authz.run_scope._background_authorization_config", lambda: SimpleNamespace(enabled=False))

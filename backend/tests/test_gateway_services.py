@@ -4364,3 +4364,29 @@ class TestForgedFrameworkInjectionMarkers:
             processed = InputSanitizationMiddleware()._try_process(_Request(graph_input["messages"]))
 
             assert "<system-reminder>" not in str(processed.messages[0].content), forged
+
+
+@pytest.mark.asyncio
+async def test_scoped_admission_denial_returns_403_before_model_or_memory(_stub_app_config):
+    from unittest.mock import AsyncMock, patch
+
+    from fastapi import HTTPException
+
+    from app.gateway.services import start_run
+    from deerflow.authz.provider import AuthorizationAdmissionDenied
+    from deerflow.runtime import RunManager
+    from deerflow.runtime.runs.store.memory import MemoryRunStore
+
+    manager = RunManager(store=MemoryRunStore())
+    request = _make_start_run_request(manager)
+    body = _run_create_request(context={"agent_name": "synthetic-agent", "is_bootstrap": True})
+    with (
+        patch("app.gateway.services.resolve_agent_factory", return_value=object()),
+        patch("app.gateway.services.bind_run_authorization_attributes", new=AsyncMock(side_effect=AuthorizationAdmissionDenied("Bootstrap requires admission"))),
+        patch("app.gateway.services.run_agent", new_callable=AsyncMock) as run_agent,
+        pytest.raises(HTTPException) as error,
+    ):
+        await start_run(body, "thread-scope-denied", request)
+    assert error.value.status_code == 403
+    run_agent.assert_not_awaited()
+    assert await manager.list_by_thread("thread-scope-denied", user_id=None) == []

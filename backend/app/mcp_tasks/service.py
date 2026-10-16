@@ -94,6 +94,9 @@ class McpTaskService:
         now: datetime | None = None,
     ) -> dict:
         """Submit through one driver and persist the remote handle before returning."""
+        from deerflow.authz.run_scope import require_background_capability_admission
+
+        await require_background_capability_admission()
         driver = self._drivers.get(driver_name)
         if driver is None:
             raise LookupError(f"No MCP task driver registered as {driver_name!r}")

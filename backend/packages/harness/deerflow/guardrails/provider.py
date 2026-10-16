@@ -28,6 +28,9 @@ class GuardrailRequest:
     channel_user_id: str | None = None
     is_internal: bool = False
     authz_attributes: dict[str, Any] = field(default_factory=dict)
+    mcp_source: dict[str, str] | None = None
+    is_mcp: bool = False
+    agent_name: str | None = None
 
 
 @dataclass

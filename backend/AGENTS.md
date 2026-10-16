@@ -395,3 +395,6 @@ See `docs/` directory for detailed documentation:
 - [PATH_EXAMPLES.md](docs/PATH_EXAMPLES.md) - Path types and usage
 - [summarization.md](docs/summarization.md) - Context summarization
 - [plan_mode_usage.md](docs/plan_mode_usage.md) - Plan mode with TodoList
+
+Scoped capability admission: see `packages/harness/deerflow/authz/AGENTS.md` and
+`docs/SCOPED_AUTHORIZATION.md`.

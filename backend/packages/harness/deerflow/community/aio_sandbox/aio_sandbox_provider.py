@@ -861,7 +861,7 @@ class AioSandboxProvider(WarmPoolLifecycleMixin[SandboxInfo], SandboxProvider):
     ) -> str:
         """Return a root-aware domain-separated identity for a policy sandbox."""
         normalized_root = _normalize_skills_container_path(skills_container_path)
-        seed = b"agent-skills-v2\0" + user_id.encode() + b"\0" + thread_id.encode() + b"\0" + normalized_root.encode()
+        seed = b"agent-skills-v3-isolated-runtime\0" + user_id.encode() + b"\0" + thread_id.encode() + b"\0" + normalized_root.encode()
         return hashlib.sha256(seed).hexdigest()[:16]
 
     @staticmethod
@@ -945,12 +945,18 @@ class AioSandboxProvider(WarmPoolLifecycleMixin[SandboxInfo], SandboxProvider):
             mounts.extend(user_skill_mounts)
             logger.info(f"Adding user skill mounts: {user_skill_mounts}")
 
-        lark_cli_mounts = self._get_lark_cli_runtime_mounts(user_id=user_id)
+        # A filtered skill tree is a capability boundary. User-level integration
+        # credentials and brokers require separate admission, which this path
+        # does not implement. They must not silently inherit from Settings.
+        lark_cli_mounts = [] if thread_projection_active else self._get_lark_cli_runtime_mounts(user_id=user_id)
         if lark_cli_mounts:
             mounts.extend(lark_cli_mounts)
             logger.info(f"Adding Lark CLI runtime mounts: {lark_cli_mounts}")
 
         return self._dedupe_mounts_by_container_path(mounts)
+
+    def _allows_user_integration_runtime(self, thread_id: str | None, user_id: str) -> bool:
+        return not (thread_id and self._thread_skill_projection_active(thread_id, user_id))
 
     def _local_config_mount_exclusion_root(
         self,
@@ -2249,8 +2255,9 @@ class AioSandboxProvider(WarmPoolLifecycleMixin[SandboxInfo], SandboxProvider):
         """
         effective_user_id = self._effective_acquire_user_id(user_id)
         extra_mounts = self._get_extra_mounts(thread_id, user_id=effective_user_id)
-        provision_lark_cli_runtime = self._lark_integration_active(effective_user_id)
-        provision_lark_cli_broker = self._lark_broker_active(effective_user_id)
+        allow_integration_runtime = self._allows_user_integration_runtime(thread_id, effective_user_id)
+        provision_lark_cli_runtime = allow_integration_runtime and self._lark_integration_active(effective_user_id)
+        provision_lark_cli_broker = allow_integration_runtime and self._lark_broker_active(effective_user_id)
         config_mount_exclusion_root = self._local_config_mount_exclusion_root(
             thread_id,
             user_id=effective_user_id,
@@ -2294,8 +2301,9 @@ class AioSandboxProvider(WarmPoolLifecycleMixin[SandboxInfo], SandboxProvider):
         """Async counterpart to ``_create_sandbox``."""
         effective_user_id = self._effective_acquire_user_id(user_id)
         extra_mounts = await asyncio.to_thread(self._get_extra_mounts, thread_id, user_id=effective_user_id)
-        provision_lark_cli_runtime = await asyncio.to_thread(self._lark_integration_active, effective_user_id)
-        provision_lark_cli_broker = await asyncio.to_thread(self._lark_broker_active, effective_user_id)
+        allow_integration_runtime = await asyncio.to_thread(self._allows_user_integration_runtime, thread_id, effective_user_id)
+        provision_lark_cli_runtime = allow_integration_runtime and await asyncio.to_thread(self._lark_integration_active, effective_user_id)
+        provision_lark_cli_broker = allow_integration_runtime and await asyncio.to_thread(self._lark_broker_active, effective_user_id)
         config_mount_exclusion_root = await asyncio.to_thread(
             self._local_config_mount_exclusion_root,
             thread_id,
