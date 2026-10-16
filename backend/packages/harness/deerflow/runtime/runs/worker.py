@@ -53,6 +53,9 @@ from deerflow.runtime.checkpoint_state import (
     graph_writable_channels,
 )
 from deerflow.runtime.context_keys import (
+    AGENT_DEFINITION_CONTEXT_KEY,
+    AGENT_DEFINITION_DIGEST_METADATA_KEY,
+    AGENT_DEFINITION_METADATA_KEY,
     CHECKPOINT_AGENT_NAME_METADATA_KEY,
     CURRENT_RUN_PRE_EXISTING_MESSAGE_IDS_KEY,
     DEFAULT_AGENT_NAME_METADATA_VALUE,
@@ -531,6 +534,7 @@ _SERVER_OWNED_RUNTIME_CONTEXT_KEYS: Final[frozenset[str]] = (
             # admission (spec §7.1); a caller-supplied value in
             # ``config['context']`` must never be merged (§12).
             PROJECT_CONTEXT_KEY,
+            AGENT_DEFINITION_CONTEXT_KEY,
         }
     )
     | SANDBOX_SERVER_OWNED_CONTEXT_KEYS
@@ -601,6 +605,22 @@ def _pin_admission_project_context(config: dict, runtime_context: dict[str, Any]
     caller_context = config.get("context")
     if isinstance(caller_context, dict) and PROJECT_CONTEXT_KEY in caller_context:
         runtime_context[PROJECT_CONTEXT_KEY] = caller_context[PROJECT_CONTEXT_KEY]
+
+
+def _pin_admission_agent_definition(record_metadata: object, runtime_context: dict[str, Any], config: dict) -> None:
+    """Restore only the server-produced durable definition reference."""
+    from deerflow.config.definition_snapshot import validate_agent_definition_reference
+
+    runtime_context.pop(AGENT_DEFINITION_CONTEXT_KEY, None)
+    metadata = config.setdefault("metadata", {})
+    metadata.pop(AGENT_DEFINITION_DIGEST_METADATA_KEY, None)
+    raw = record_metadata.get(AGENT_DEFINITION_METADATA_KEY) if isinstance(record_metadata, dict) else None
+    if raw is None:
+        return
+    reference = validate_agent_definition_reference(raw)
+    runtime_context[AGENT_DEFINITION_CONTEXT_KEY] = reference
+    runtime_context["agent_name"] = reference["name"]
+    metadata[AGENT_DEFINITION_DIGEST_METADATA_KEY] = reference["digest"]
 
 
 @dataclass(frozen=True)
@@ -1091,6 +1111,9 @@ async def run_agent(
         else:
             configurable = config.get("configurable")
             checkpoint_agent_name = configurable.get("agent_name") if isinstance(configurable, dict) else None
+        _pin_admission_agent_definition(record.metadata, runtime_ctx, config)
+        if AGENT_DEFINITION_CONTEXT_KEY in runtime_ctx:
+            checkpoint_agent_name = runtime_ctx["agent_name"]
         checkpoint_metadata = config.get("metadata")
         if not isinstance(checkpoint_metadata, dict):
             checkpoint_metadata = {}

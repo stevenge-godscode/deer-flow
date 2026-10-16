@@ -234,6 +234,19 @@ class AgentConfig(BaseModel):
     # Disable every memory path for stateless execution-oriented agents while
     # preserving the global memory configuration for all other agents.
     memory_enabled: bool = True
+    # Published definitions use a new name for every revision. Legacy agents
+    # remain mutable; only create may opt into canonical immutable storage.
+    immutable_definition: bool = Field(default=False, strict=True)
+    skill_body_sha256: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_published_skill_identity(self):
+        if any(len(value) != 64 or any(c not in "0123456789abcdef" for c in value) for value in self.skill_body_sha256.values()):
+            raise ValueError("Skill body identity must be lowercase SHA-256")
+        if self.immutable_definition and (self.skills is None or set(self.skills) != set(self.skill_body_sha256)):
+            raise ValueError("Immutable definitions require explicit skills and matching body digests")
+        return self
+
     # Optional binding to GitHub repositories so this agent can respond to
     # webhook events from the gateway dispatcher. None means "no GitHub
     # integration", which is the case for every existing agent.
@@ -303,11 +316,11 @@ def resolve_agent_dir(name: str, *, user_id: str | None = None) -> Path:
     user_path = paths.user_agent_dir(effective_user, name)
     # Require config.yaml to confirm this is a genuine agent directory,
     # not a leftover from memory/storage writes (see #3390).
-    if user_path.exists() and (user_path / "config.yaml").exists():
+    if user_path.exists() and ((user_path / "config.yaml").exists() or (user_path / "definition.json").exists()):
         return user_path
 
     legacy_path = paths.agent_dir(name)
-    if legacy_path.exists() and (legacy_path / "config.yaml").exists():
+    if legacy_path.exists() and ((legacy_path / "config.yaml").exists() or (legacy_path / "definition.json").exists()):
         return legacy_path
 
     return user_path

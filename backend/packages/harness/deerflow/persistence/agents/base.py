@@ -2,8 +2,8 @@
 
 Two implementations:
 - :class:`FileAgentStore` — the historical per-user on-disk layout
-  (``config.yaml`` + ``SOUL.md``), still the default and behaviourally
-  unchanged.
+  (``config.yaml`` + ``SOUL.md``) for mutable definitions, and one
+  authoritative ``definition.json`` for opt-in immutable definitions.
 - :class:`SqlAgentStore` — a row per agent in the shared SQL persistence
   layer, so every node in a multi-instance deployment sees the same agents.
 
@@ -15,8 +15,7 @@ Async HTTP routes call the store via ``asyncio.to_thread`` (the same pattern the
 agents router already uses for filesystem work).
 
 ``user_id`` semantics (kept identical to the pre-refactor free functions in
-:mod:`deerflow.config.agents_config`, which is what makes the file backend a
-behaviour-neutral move): ``None`` resolves to the effective user from the
+:mod:`deerflow.config.agents_config`, which preserves legacy storage identity): ``None`` resolves to the effective user from the
 request context — ``"default"`` in no-auth mode — via
 :func:`deerflow.runtime.user_context.get_effective_user_id`. This is filesystem
 bucket semantics, distinct from the AUTO/None sentinel used by the async
@@ -26,8 +25,11 @@ bucket semantics, distinct from the AUTO/None sentinel used by the async
 from __future__ import annotations
 
 import abc
+import hashlib
+import json
 import logging
 from collections.abc import Hashable
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import ValidationError
@@ -75,7 +77,49 @@ class AgentExistsError(Exception):
     """Raised by :meth:`AgentStore.create` when ``(user_id, name)`` already exists."""
 
 
+class ImmutableAgentDefinitionError(ValueError):
+    """A published name cannot be edited or removed; create a new revision."""
+
+
+@dataclass(frozen=True)
+class AgentDefinitionSnapshot:
+    config: AgentConfig
+    soul: str | None
+    digest: str
+
+
+def definition_document(config: dict, soul: str, name: str, *, normalize_config: bool = True) -> dict:
+    parsed = parse_agent_config({**config, "name": name}, name)
+    config_data = parsed.model_dump(mode="json") if normalize_config else {**config, "name": name}
+    payload = {"schema": "deerflow.agent-definition/v1", "config": config_data, "soul": soul}
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return {**payload, "digest": hashlib.sha256(canonical).hexdigest()}
+
+
+def snapshot_from_document(document: dict, name: str) -> AgentDefinitionSnapshot:
+    if not isinstance(document, dict) or set(document) != {"schema", "config", "soul", "digest"} or document.get("schema") != "deerflow.agent-definition/v1":
+        raise ValueError("Invalid Agent definition document")
+    if not isinstance(document["config"], dict) or not isinstance(document["soul"], str) or not isinstance(document["digest"], str):
+        raise ValueError("Invalid Agent definition values")
+    payload = {key: value for key, value in document.items() if key != "digest"}
+    digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+    if digest != document["digest"]:
+        raise ValueError("Agent definition digest mismatch")
+    config = parse_agent_config(document["config"], name)
+    if config.name != name:
+        raise ValueError("Agent definition identity mismatch")
+    return AgentDefinitionSnapshot(config, document["soul"].strip() or None, digest)
+
+
 class AgentStore(abc.ABC):
+    def get_definition_snapshot(self, name: str, *, user_id: str | None = None) -> AgentDefinitionSnapshot:
+        """Legacy fallback; implementations provide canonical/single-row reads.
+
+        This default does not promise atomicity for a mutable legacy store.
+        """
+        config = self.get(name, user_id=user_id)
+        return snapshot_from_document(definition_document(config.model_dump(mode="json"), self.get_soul(name, user_id=user_id) or "", config.name), config.name)
+
     @abc.abstractmethod
     def get(self, name: str, *, user_id: str | None = None) -> AgentConfig:
         """Return the agent's config.

@@ -18,6 +18,12 @@ DEFAULT_AGENT_NAME_METADATA_VALUE: Final[str] = "__default__"
 # Gateway admission and refused by the run worker's runtime-context merge.
 PROJECT_CONTEXT_KEY: Final[str] = "__deerflow_project_context"
 
+# Only a small server-authored immutable definition reference travels with a
+# durable run. The definition body remains in the owner-scoped AgentStore.
+AGENT_DEFINITION_CONTEXT_KEY: Final[str] = "__deerflow_agent_definition_ref"
+AGENT_DEFINITION_METADATA_KEY: Final[str] = "deerflow_agent_definition_ref"
+AGENT_DEFINITION_DIGEST_METADATA_KEY: Final[str] = "deerflow_agent_definition_digest"
+
 
 def checkpoint_agent_binding_metadata(metadata: object) -> dict[str, str]:
     """Copy a checkpoint's server-authored agent binding for a state rewrite.
@@ -30,4 +36,8 @@ def checkpoint_agent_binding_metadata(metadata: object) -> dict[str, str]:
     value = metadata.get(CHECKPOINT_AGENT_NAME_METADATA_KEY)
     if not isinstance(value, str) or not value:
         return {}
-    return {CHECKPOINT_AGENT_NAME_METADATA_KEY: value}
+    result = {CHECKPOINT_AGENT_NAME_METADATA_KEY: value}
+    digest = metadata.get(AGENT_DEFINITION_DIGEST_METADATA_KEY)
+    if isinstance(digest, str) and len(digest) == 64 and all(c in "0123456789abcdef" for c in digest):
+        result[AGENT_DEFINITION_DIGEST_METADATA_KEY] = digest
+    return result

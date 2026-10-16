@@ -57,6 +57,7 @@ from deerflow.authz.runtime import resolve_authorization_provider
 from deerflow.authz.tool_filter import apply_tool_authorization, resolve_skill_authorization
 from deerflow.config.agents_config import load_agent_config, validate_agent_name
 from deerflow.config.app_config import AppConfig, get_app_config
+from deerflow.config.definition_snapshot import resolve_agent_definition_snapshot
 from deerflow.config.memory_config import should_use_memory_tools
 from deerflow.config.subagents_config import (
     DEFAULT_MAX_TOTAL_SUBAGENTS_PER_RUN,
@@ -70,6 +71,7 @@ from deerflow.runtime.checkpoint_mode import (
     frozen_checkpoint_channel_mode,
     inject_checkpoint_mode,
 )
+from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY, AGENT_DEFINITION_DIGEST_METADATA_KEY
 from deerflow.skills.types import Skill
 from deerflow.subagents.capacity import configured_subagent_max_running
 from deerflow.tracing import build_tracing_callbacks
@@ -489,6 +491,7 @@ def build_middlewares(
     *,
     available_skills: set[str] | None = None,
     memory_enabled: bool = True,
+    skill_body_sha256: dict[str, str] | None = None,
     owns_agent_skill_projection: bool = True,
     app_config: AppConfig | None = None,
     deferred_setup=None,
@@ -548,6 +551,8 @@ def build_middlewares(
         runtime_middleware_kwargs["authorization_provider"] = authorization_provider
     if authorization_provider is not None and deferred_setup is not None:
         runtime_middleware_kwargs["deferred_setup"] = deferred_setup
+    if skill_body_sha256 is not None:
+        runtime_middleware_kwargs["skill_body_sha256"] = skill_body_sha256
     middlewares = build_lead_runtime_middlewares(**runtime_middleware_kwargs)
 
     # Always inject current date (and optionally memory) as <system-reminder> into the
@@ -569,11 +574,15 @@ def build_middlewares(
 
     slash_source_owner_token = secrets.token_urlsafe(24)
     skill_authorization_kwargs = {}
+    if skill_body_sha256 is not None:
+        skill_authorization_kwargs["skill_body_sha256"] = skill_body_sha256
     if getattr(authorization_provider, "requires_skill_authorization", False) is True:
-        skill_authorization_kwargs = {
-            "authorization_provider": authorization_provider,
-            "authorization_principal": build_principal_from_context(_get_runtime_config(config), default_role=resolved_app_config.authorization.default_role),
-        }
+        skill_authorization_kwargs.update(
+            {
+                "authorization_provider": authorization_provider,
+                "authorization_principal": build_principal_from_context(_get_runtime_config(config), default_role=resolved_app_config.authorization.default_role),
+            }
+        )
 
     middlewares.append(
         SkillActivationMiddleware(
@@ -957,7 +966,20 @@ def _assemble_lead_agent(config: RunnableConfig, *, app_config: AppConfig) -> Le
     non_interactive = bool(cfg.get("non_interactive", False))
     agent_name = validate_agent_name(cfg.get("agent_name"))
 
+    if is_bootstrap and agent_name:
+        try:
+            bootstrap_config = load_agent_config(agent_name, user_id=resolved_user_id)
+        except FileNotFoundError:
+            bootstrap_config = None
+        if getattr(bootstrap_config, "immutable_definition", False) is True:
+            raise ValueError("Published Agent definitions cannot execute in bootstrap mode")
     agent_config = load_agent_config(agent_name, user_id=resolved_user_id) if not is_bootstrap else None
+    agent_definition = None if is_bootstrap else resolve_agent_definition_snapshot(agent_name, agent_config, user_id=resolved_user_id, reference=cfg.get(AGENT_DEFINITION_CONTEXT_KEY))
+    config.setdefault("metadata", {}).pop(AGENT_DEFINITION_DIGEST_METADATA_KEY, None)
+    if agent_definition is not None:
+        agent_config = agent_definition.config
+        config["metadata"][AGENT_DEFINITION_DIGEST_METADATA_KEY] = agent_definition.digest
+
     memory_enabled = getattr(agent_config, "memory_enabled", True) is not False
     # Keep compatibility with lightweight AgentConfig-shaped objects used by
     # integrations that predate caller-level subagent restrictions.
@@ -1051,6 +1073,14 @@ def _assemble_lead_agent(config: RunnableConfig, *, app_config: AppConfig) -> Le
         available_skills = set(authorized_skill_names)
         enabled_skills = [skill for skill in enabled_skills if skill.name in available_skills]
         config["metadata"]["available_skills"] = sorted(available_skills)
+
+    skill_body_sha256 = agent_definition.config.skill_body_sha256 if agent_definition is not None else None
+    if skill_body_sha256 is not None:
+        from deerflow.skills.definition import verified_skill
+
+        enabled_skills = [verified_skill(skill, skill_body_sha256) for skill in enabled_skills]
+        if available_skills is None or {skill.name for skill in enabled_skills} != available_skills:
+            raise ValueError("Published skills are unavailable")
 
     # Build skill search setup (deferred skill discovery).
     # Controlled by skills.deferred_discovery — independent from tool_search.enabled.
@@ -1188,7 +1218,7 @@ def _assemble_lead_agent(config: RunnableConfig, *, app_config: AppConfig) -> Le
     # leave it unset, so ``update_agent`` remains available there.
     channel_name = cfg.get("channel_name")
     is_webhook_channel = channel_name in _WEBHOOK_CHANNELS
-    extra_tools = [update_agent] if agent_name and not is_webhook_channel else []
+    extra_tools = [update_agent] if agent_name and not is_webhook_channel and agent_definition is None else []
     # Default lead agent (unchanged behavior)
     raw_tools = get_available_tools(
         model_name=model_name,
@@ -1228,6 +1258,7 @@ def _assemble_lead_agent(config: RunnableConfig, *, app_config: AppConfig) -> Le
         model_name=model_name,
         agent_name=agent_name,
         available_skills=available_skills,
+        **({"skill_body_sha256": skill_body_sha256} if skill_body_sha256 is not None else {}),
         memory_enabled=memory_enabled,
         app_config=resolved_app_config,
         deferred_setup=setup,
@@ -1241,6 +1272,7 @@ def _assemble_lead_agent(config: RunnableConfig, *, app_config: AppConfig) -> Le
         max_concurrent_subagents=max_concurrent_subagents,
         max_total_subagents=max_total_subagents,
         agent_name=agent_name,
+        agent_definition=agent_definition,
         available_skills=available_skills,
         app_config=resolved_app_config,
         deferred_names=setup.deferred_names,

@@ -1312,7 +1312,7 @@ class TestEnsureAgent:
         assert mock_build_middlewares.call_args.kwargs["memory_enabled"] is expected_memory_enabled
         assert mock_apply_prompt.call_args.kwargs["memory_enabled"] is expected_memory_enabled
 
-    def test_reuses_named_agent_config_on_cached_agent_fast_path(self, client):
+    def test_rechecks_named_definition_before_reusing_cached_agent(self, client):
         client._agent_name = "stateful-agent"
         config = client._get_runnable_config("t1")
 
@@ -1331,8 +1331,14 @@ class TestEnsureAgent:
         ):
             client._ensure_agent(config, context={"user_id": "owner-1"})
             client._ensure_agent(config, context={"user_id": "owner-1"})
+            # A cached graph must not hide replacement by a published body
+            # whose native admission guarantees this embedded path lacks.
+            mock_load_agent_config.return_value = AgentConfig(name="stateful-agent", immutable_definition=True, skills=[], skill_body_sha256={})
+            with pytest.raises(ValueError, match="embedded execution is unsupported"):
+                client._ensure_agent(config, context={"user_id": "owner-1"})
 
-        mock_load_agent_config.assert_called_once_with("stateful-agent", user_id="owner-1")
+        assert mock_load_agent_config.call_count == 3
+        mock_load_agent_config.assert_called_with("stateful-agent", user_id="owner-1")
         assert mock_create_agent.call_count == 1
 
     def test_reset_agent_refreshes_named_agent_config(self, client):
@@ -1369,7 +1375,7 @@ class TestEnsureAgent:
         ],
         ids=["missing", "invalid"],
     )
-    def test_unreadable_named_agent_config_preserves_legacy_memory_default(
+    def test_missing_config_keeps_legacy_default_but_corruption_fails_closed(
         self,
         client,
         caplog,
@@ -1380,7 +1386,7 @@ class TestEnsureAgent:
 
         with (
             patch("deerflow.client.create_chat_model"),
-            patch("deerflow.client.create_agent", return_value=MagicMock()),
+            patch("deerflow.client.create_agent", return_value=MagicMock()) as mock_create_agent,
             patch("deerflow.client.build_middlewares", return_value=[]) as mock_build_middlewares,
             patch("deerflow.client.apply_prompt_template", return_value="prompt"),
             patch("deerflow.client.load_agent_config", side_effect=config_error) as mock_load_agent_config,
@@ -1388,10 +1394,17 @@ class TestEnsureAgent:
             patch.object(client, "_get_tools", return_value=[]),
             patch("deerflow.runtime.checkpointer.get_checkpointer", return_value=None),
         ):
+            if isinstance(config_error, ValueError):
+                with pytest.raises(ValueError, match="invalid config"):
+                    client._ensure_agent(config, context={"user_id": "owner-1"})
+                mock_create_agent.assert_not_called()
+                mock_build_middlewares.assert_not_called()
+                return
             client._ensure_agent(config, context={"user_id": "owner-1"})
             client._ensure_agent(config, context={"user_id": "owner-1"})
 
-        mock_load_agent_config.assert_called_once_with("soul-only-agent", user_id="owner-1")
+        assert mock_load_agent_config.call_count == 2
+        mock_load_agent_config.assert_called_with("soul-only-agent", user_id="owner-1")
         assert mock_build_middlewares.call_args.kwargs["memory_enabled"] is True
         assert "using the memory-enabled compatibility default" in caplog.text
 
