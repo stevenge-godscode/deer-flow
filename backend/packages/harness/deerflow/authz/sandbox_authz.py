@@ -23,6 +23,7 @@ from deerflow.authz.principal import build_principal_from_context
 from deerflow.authz.provider import AuthorizationProvider, AuthzDecision, AuthzRequest, Principal
 from deerflow.authz.runtime import construct_authorization_provider, resolve_authorization_provider, resolve_authorization_provider_spec
 from deerflow.config.app_config import AppConfig
+from deerflow.constants import SANDBOX_EXECUTION_TARGET
 from deerflow.sandbox.exceptions import SandboxAuthorizationError
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,6 @@ async def safe_app_config_async() -> AppConfig | None:
 # Authorization precedes acquisition, so this names the single sandbox
 # execution capability, not a container ID or a wildcard grant. Legacy RBAC
 # allow:["*"] / allow:true still matches it through the existing policy rules.
-SANDBOX_EXECUTION_TARGET = "default"
 
 
 def _resolve_authorization_inputs(

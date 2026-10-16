@@ -207,7 +207,7 @@ def _build_runtime_middlewares(
             lazy_init=lazy_init,
             available_skills=available_skills,
             owns_agent_skill_projection=owns_agent_skill_projection,
-            skill_body_sha256=skill_body_sha256,
+            **({"skill_body_sha256": skill_body_sha256} if skill_body_sha256 is not None else {}),
         )
     )
 

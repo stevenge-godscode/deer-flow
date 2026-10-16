@@ -532,3 +532,33 @@ def test_actual_sandbox_gate_matches_exact_scope_and_central_authority(env, monk
     path.write_text(json.dumps(policy))
     with pytest.raises(SandboxAuthorizationError):
         invoke()
+
+
+@pytest.mark.parametrize(
+    "rule,allowed",
+    [
+        ({"allow": True}, True),
+        ({"allow": "*"}, True),
+        ({"allow": ["*"]}, True),
+        ({"allow": ["default"]}, True),
+        ({"allow": False}, False),
+        ({"allow": []}, False),
+        ({"allow": True, "deny": ["*"]}, False),
+        ({"allow": ["default"], "deny": ["*"]}, False),
+        ({"allow": ["*"], "deny": ["default"]}, False),
+    ],
+)
+def test_sandbox_rbac_preserves_legacy_singleton_allow_and_deny(rule, allowed):
+    from deerflow.authz.rbac import RbacAuthorizationProvider
+
+    provider = RbacAuthorizationProvider(roles={"user": {"sandbox": rule}})
+    request = AuthzRequest(Principal(user_id="owner-a", role="user"), "sandbox", "execute", "default")
+    assert provider.authorize(request).allow is allowed
+    assert provider.filter_resources(request.principal, "sandbox", ["default"]) == (["default"] if allowed else [])
+
+
+def test_sandbox_legacy_alias_does_not_turn_tool_lists_into_globs():
+    from deerflow.authz.rbac import RbacAuthorizationProvider
+
+    provider = RbacAuthorizationProvider(roles={"user": {"tools": {"allow": ["*"]}}})
+    assert not provider.authorize(AuthzRequest(Principal(user_id="owner-a", role="user"), "tool", "call", "read_file")).allow

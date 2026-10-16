@@ -19,6 +19,7 @@ from deerflow.authz.provider import (
     AuthzRequest,
     Principal,
 )
+from deerflow.constants import SANDBOX_EXECUTION_TARGET
 
 # Explicit resource-type → config-key mapping. Prevents silent mis-lookup
 # when ``AuthzRequest.resource`` (singular, e.g. "tool") doesn't match the
@@ -183,6 +184,14 @@ class RbacAuthorizationProvider:
         else:
             raise ValueError(f"role '{role_name}' resource '{resource_key}': deny must be a list of strings, got {type(raw_deny).__name__}")
 
+        if resource_key == "sandbox":
+            # Legacy list policies used the old singleton sentinel "*" as a
+            # literal resource, including in deny lists. Preserve both aliases
+            # without turning list entries into glob rules for other resources.
+            if isinstance(allowed, frozenset) and "*" in allowed:
+                allowed = allowed | {SANDBOX_EXECUTION_TARGET}
+            if "*" in denied:
+                denied = denied | {SANDBOX_EXECUTION_TARGET}
         return _CompiledPolicy(allowed=allowed, denied=denied)
 
     def _resolve_policy(
