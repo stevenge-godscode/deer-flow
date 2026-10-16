@@ -48,6 +48,7 @@ class ThreadMetaRepository(ThreadMetaStore):
         display_name: str | None = None,
         metadata: dict | None = None,
         project_id: str | None = None,
+        if_absent: bool = False,
     ) -> dict:
         # Auto-resolve user_id from contextvar when AUTO; explicit None
         # creates an orphan row (used by migration scripts).
@@ -93,6 +94,17 @@ class ThreadMetaRepository(ThreadMetaStore):
             await session.commit()
             await session.refresh(row)
             return self._row_to_dict(row)
+
+    async def ensure_incarnation(self, thread_id: str, *, user_id: str | None | _AutoSentinel = AUTO) -> dict | None:
+        owner = resolve_user_id(user_id, method_name="ThreadMetaRepository.ensure_incarnation")
+        if not isinstance(owner, str) or not owner:
+            raise ValueError("An explicit owner is required")
+        async with self._sf() as session:
+            await session.execute(
+                update(ThreadMetaRow).where(ThreadMetaRow.thread_id == thread_id, ThreadMetaRow.user_id == owner, ThreadMetaRow.incarnation.is_(None)).values(incarnation=uuid.uuid4().hex, updated_at=ThreadMetaRow.updated_at)
+            )
+            await session.commit()
+        return await self.get(thread_id, user_id=owner)
 
     async def claim_unowned(self, thread_id: str, owner: str) -> bool:
         claim_target = table(

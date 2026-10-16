@@ -21,6 +21,20 @@ from deerflow.reflection import resolve_variable
 from deerflow.runtime.context_keys import PROJECT_CONTEXT_KEY
 
 _SCOPE_KEY = "capability_scope"
+_DEFAULT_AGENT = "deerflow:default-agent"
+_PROJECTLESS = "deerflow:projectless"
+_PROJECTLESS_ADMISSION_KEY = "_deerflow_admitted_projectless"
+
+
+def _agent_subject(value) -> str:
+    # None is the native default Agent, not a publicly addressable Agent name.
+    if value is None:
+        return _DEFAULT_AGENT
+    if not isinstance(value, str) or not value or any(not (c.isascii() and (c.isalnum() or c == "-")) for c in value):
+        return ""
+    return value
+
+
 _CENTRAL_RESOURCES = frozenset({"route", "model", "application"})
 _ACTIONS = {"tool": "call", "skill": "activate", "mcp_server": "connect", "sandbox": "execute"}
 
@@ -136,7 +150,11 @@ class ScopedAuthorizationProvider:
         policy = self._read_policy()
         project = context.get(PROJECT_CONTEXT_KEY)
         scope = RunScope(
-            owner_id=str(context.get("user_id") or ""), project_id=str(project.get("project_id") or "") if isinstance(project, dict) else "", agent_name=str(context.get("agent_name") or ""), policy_revision=policy.revision, grants=[]
+            owner_id=context.get("user_id") if isinstance(context.get("user_id"), str) else "",
+            project_id=(project.get("project_id") if isinstance(project.get("project_id"), str) else "") if isinstance(project, dict) else (_PROJECTLESS if context.get(_PROJECTLESS_ADMISSION_KEY) is True else ""),
+            agent_name=_agent_subject(context.get("agent_name")),
+            policy_revision=policy.revision,
+            grants=[],
         )
         # Bootstrap has a different toolset and filesystem policy. A lead
         # Agent grant must never authorize that alternate execution mode.
@@ -154,7 +172,7 @@ class ScopedAuthorizationProvider:
         scope = RunScope.model_validate(principal.attributes.get(_SCOPE_KEY))
         # This grant is for the admitted lead Agent. Delegation requires its
         # own admission contract; copying a parent's attributes is not proof.
-        if principal.is_subagent or principal.agent_name != scope.agent_name or not scope.owner_id or not scope.project_id or not scope.agent_name or principal.user_id != scope.owner_id:
+        if principal.is_subagent or _agent_subject(principal.agent_name) != scope.agent_name or not scope.owner_id or not scope.project_id or not scope.agent_name or principal.user_id != scope.owner_id:
             return policy, set()
         current = {grant.id: grant for grant in policy.grants if self._matches(grant, scope)}
         pinned_keys = set()

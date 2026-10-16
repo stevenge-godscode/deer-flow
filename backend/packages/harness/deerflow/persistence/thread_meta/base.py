@@ -67,10 +67,21 @@ class ThreadMetaStore(abc.ABC):
         display_name: str | None = None,
         metadata: dict | None = None,
         project_id: str | None = None,
+        if_absent: bool = False,
     ) -> dict:
         """Create a thread row; when ``project_id`` is set, validate the
         project inside the insert transaction and raise
-        ``ProjectNotAssignableError`` on failure (no partial row)."""
+        ``ProjectNotAssignableError`` on failure (no partial row).
+        With if_absent=True an existing row must never be overwritten; it may
+        be returned for the same owner or rejected as an insert conflict."""
+
+    async def ensure_incarnation(self, thread_id: str, *, user_id: str | None | _AutoSentinel = AUTO) -> dict | None:
+        """Atomically initialize only an owned legacy row's NULL incarnation.
+
+        Preserve owner, project, metadata, timestamps and any existing non-NULL
+        incarnation. Explicit unscoped identity is never permitted here.
+        """
+        raise NotImplementedError("Thread incarnation admission is unavailable")
 
     @abc.abstractmethod
     async def claim_unowned(self, thread_id: str, owner: str) -> bool:
