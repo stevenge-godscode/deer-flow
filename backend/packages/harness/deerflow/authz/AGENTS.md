@@ -15,3 +15,12 @@ and brokers. Preserve both sync/async paths and ownership-fenced replacement.
 Live authority shrinkage fences all protected tools until original permissions
 are restored; it is not a persisted revocation latch. Contract and deployment
 limits: `docs/SCOPED_AUTHORIZATION.md`.
+
+Default/projectless subjects are internal exact identities only. A true default
+Agent stays public None. Projectless proof comes from strict owner membership
+resolution, never caller flags or lookup failure. Temporary admission must prove
+absence of legacy checkpoint/journal history; retain the same provider instance
+through proof binding. Thread startup pins/rechecks owner plus incarnation,
+including owned-only atomic initialization of legacy NULL incarnations; it never
+uses the legacy unscoped ownership-claim path. Verification cancellation fails
+closed. Keep SCOPED_AUTHORIZATION.md and two-stage admission regressions current.

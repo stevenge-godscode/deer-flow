@@ -44,11 +44,11 @@ from deerflow.agents.middlewares.tool_receipt import TOOL_RECEIPT_KEY, TOOL_RECE
 from deerflow.agents.middlewares.tool_transform_meta import TOOL_TRANSFORMS_KEY
 from deerflow.agents.middlewares.view_image_middleware import _IMAGE_CONTEXT_MESSAGE_MARKER_KEY
 from deerflow.authz.provider import AuthorizationAdmissionDenied
-from deerflow.authz.run_scope import bind_run_authorization_attributes
+from deerflow.authz.run_scope import bind_run_authorization_attributes, prepare_run_authorization_provider
 from deerflow.config.app_config import get_app_config
 from deerflow.config.database_config import resolve_checkpoint_graph_cache_max
 from deerflow.config.definition_snapshot import bind_agent_definition_reference
-from deerflow.projects.context import PROJECT_CONTEXT_MESSAGE_MARKER, resolve_project_context
+from deerflow.projects.context import PROJECT_CONTEXT_MESSAGE_MARKER, ProjectContextResolutionError, resolve_project_context
 from deerflow.runtime import (
     END_SENTINEL,
     HEARTBEAT_SENTINEL,
@@ -198,15 +198,63 @@ def _log_thread_metadata_task_result(task: asyncio.Task, *, thread_id: str) -> N
         )
 
 
+def _initial_thread_metadata(run_metadata: dict | None) -> dict:
+    from deerflow.persistence.thread_meta import THREAD_PROJECT_METADATA_KEY
+
+    return {key: value for key, value in (run_metadata or {}).items() if key not in (DEERFLOW_TRACE_METADATA_KEY, THREAD_PROJECT_METADATA_KEY, AGENT_DEFINITION_METADATA_KEY)}
+
+
+async def _ensure_scope_thread(thread_store, thread_id: str, *, owner_id: str | None, assistant_id: str, require_existing: bool, metadata: dict | None = None, freshness_check=None) -> dict:
+    """Create a temporary owned row before strict admission; pin its incarnation."""
+    from sqlalchemy.exc import IntegrityError
+
+    from deerflow.persistence.thread_meta.base import ThreadOwnershipConflictError
+
+    if not isinstance(owner_id, str) or not owner_id or thread_store is None:
+        raise HTTPException(status_code=503, detail="Trusted thread admission unavailable")
+    try:
+        row = await thread_store.get(thread_id, user_id=owner_id)
+        if row is None:
+            if require_existing:
+                raise HTTPException(status_code=404, detail="Thread not found")
+            if not callable(freshness_check):
+                raise HTTPException(status_code=503, detail="New thread history admission unavailable")
+            await freshness_check()
+            try:
+                await thread_store.create(thread_id, user_id=owner_id, assistant_id=assistant_id, metadata=_initial_thread_metadata(metadata), if_absent=True)
+            except (IntegrityError, ThreadOwnershipConflictError):
+                pass
+            row = await thread_store.get(thread_id, user_id=owner_id)
+        if row is None or row.get("user_id") != owner_id:
+            raise HTTPException(status_code=404, detail="Thread not found")
+        if row.get("incarnation") is None:
+            row = await thread_store.ensure_incarnation(thread_id, user_id=owner_id)
+            if row is None or row.get("user_id") != owner_id:
+                raise HTTPException(status_code=404, detail="Thread not found")
+        if not isinstance(row.get("incarnation"), str) or not row["incarnation"]:
+            raise HTTPException(status_code=503, detail="Trusted thread incarnation unavailable")
+        return {"user_id": owner_id, "incarnation": row["incarnation"]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Trusted thread admission unavailable") from exc
+
+
 async def _ensure_thread_metadata(
     run_ctx: RunContext,
     record: RunRecord,
     *,
     owner_user_id: str | None,
     require_existing_thread: bool = False,
+    scope_thread: dict | None = None,
 ) -> None:
     """Ensure an admitted run's thread exists without delaying task attachment."""
     thread_store = run_ctx.thread_store
+    if scope_thread is not None:
+        existing = await thread_store.get(record.thread_id, user_id=scope_thread["user_id"])
+        if existing is None or existing.get("user_id") != scope_thread["user_id"] or existing.get("incarnation") != scope_thread["incarnation"]:
+            raise LookupError("Admitted thread was deleted or replaced")
+        return
     existing = await thread_store.get(record.thread_id)
     if existing is None and owner_user_id:
         unscoped = await thread_store.get(record.thread_id, user_id=None)
@@ -217,18 +265,7 @@ async def _ensure_thread_metadata(
     if existing is None:
         if require_existing_thread:
             raise LookupError(f"Thread {record.thread_id} was deleted during run admission")
-        from deerflow.persistence.thread_meta import THREAD_PROJECT_METADATA_KEY
-
-        run_metadata = record.metadata or {}
-        metadata = {
-            key: value
-            for key, value in run_metadata.items()
-            # Strip the run-scoped trace id (existing) and the reserved
-            # membership key: run admission never modifies project membership —
-            # the column is written only by POST /api/threads and
-            # /threads/{id}/move — so the key must not persist either.
-            if key not in (DEERFLOW_TRACE_METADATA_KEY, THREAD_PROJECT_METADATA_KEY, AGENT_DEFINITION_METADATA_KEY)
-        }
+        metadata = _initial_thread_metadata(record.metadata)
         await thread_store.create(
             record.thread_id,
             assistant_id=record.assistant_id,
@@ -1693,21 +1730,47 @@ async def start_run(
                         ),
                     ],
                 }
-        # Resolve and pin the thread's project context once per run (spec
-        # §7.1): middlewares and tools read only this server-owned snapshot —
-        # nothing re-resolves membership mid-run, and admission never writes
-        # membership (§10.7). Resolution failure degrades to unassigned with a
-        # warning inside the resolver; it never fails the run.
-        for section in ("context", "configurable"):
-            config.setdefault(section, {}).pop(PROJECT_CONTEXT_KEY, None)
-        project_context = await resolve_project_context(
-            run_ctx.thread_store,
-            getattr(request.app.state, "project_repo", None),
-            thread_id,
-            getattr(request.app.state, "project_document_repo", None),
-        )
-        if project_context is not None:
-            config["context"][PROJECT_CONTEXT_KEY] = project_context
+        # Scope-sensitive authorization distinguishes genuine projectless
+        # threads from failed membership resolution. Resolve the provider once
+        # and use that same instance to produce the admitted proof.
+        authorization_config = get_app_config().authorization
+        try:
+            authorization_provider = await prepare_run_authorization_provider(authorization_config)
+            strict_membership = getattr(authorization_provider, "requires_run_scope", False) is True
+
+            async def assert_fresh_thread() -> None:
+                # Missing owner metadata cannot authorize historical checkpoints
+                # or journal contents under a newly created projectless row.
+                if await request.app.state.run_event_store.list_messages(thread_id, limit=1, user_id=None):
+                    raise HTTPException(status_code=409, detail="Historical thread requires explicit ownership migration")
+                async for _checkpoint in get_checkpointer(request).alist({"configurable": {"thread_id": thread_id}}, limit=1):
+                    raise HTTPException(status_code=409, detail="Historical thread requires explicit ownership migration")
+
+            scope_thread = None
+            if strict_membership:
+                scope_thread = await _ensure_scope_thread(
+                    run_ctx.thread_store,
+                    thread_id,
+                    owner_id=config["context"].get("user_id"),
+                    assistant_id=body.assistant_id,
+                    require_existing=require_existing_thread,
+                    metadata=run_metadata,
+                    freshness_check=assert_fresh_thread,
+                )
+            for section in ("context", "configurable"):
+                config.setdefault(section, {}).pop(PROJECT_CONTEXT_KEY, None)
+            project_context = await resolve_project_context(
+                run_ctx.thread_store,
+                getattr(request.app.state, "project_repo", None),
+                thread_id,
+                getattr(request.app.state, "project_document_repo", None),
+                strict=strict_membership,
+                owner_id=config["context"].get("user_id"),
+            )
+        except HTTPException:
+            raise
+        except (ProjectContextResolutionError, ValueError) as exc:
+            raise HTTPException(status_code=503, detail="Trusted run authorization unavailable") from exc
         if checkpoint_definition is not None:
             selected = {**config.get("configurable", {}), **config.get("context", {})}
             if selected.get("is_bootstrap") or selected.get("agent_name") not in (None, checkpoint_definition["name"]):
@@ -1715,7 +1778,12 @@ async def start_run(
             for section in ("context", "configurable"):
                 config.setdefault(section, {})["agent_name"] = checkpoint_definition["name"]
         try:
-            await bind_run_authorization_attributes(config, get_app_config().authorization, project_context=project_context)
+            await bind_run_authorization_attributes(
+                config,
+                provider=authorization_provider,
+                project_context=project_context,
+                admitted_projectless=strict_membership and project_context is None,
+            )
         except AuthorizationAdmissionDenied as exc:
             # Reject before any Agent/model is constructed, including middleware
             # that could read memory without a tool call.
@@ -1726,12 +1794,14 @@ async def start_run(
             raise HTTPException(status_code=409, detail="Published Agent definition does not match the checkpoint") from exc
 
         async def run_after_metadata(record: RunRecord) -> None:
+            strict_thread = require_existing_thread or strict_membership
             metadata_task = asyncio.create_task(
                 _ensure_thread_metadata(
                     run_ctx,
                     record,
                     owner_user_id=owner_user_id,
-                    require_existing_thread=require_existing_thread,
+                    require_existing_thread=strict_thread,
+                    scope_thread=scope_thread,
                 )
             )
             abort_task = asyncio.create_task(record.abort_event.wait())
@@ -1747,14 +1817,15 @@ async def start_run(
                     try:
                         metadata_task.result()
                     except asyncio.CancelledError:
-                        pass
+                        if strict_thread:
+                            metadata_failure = RuntimeError("Thread metadata verification was cancelled")
                     except Exception as exc:
                         metadata_failure_logged = True
                         metadata_failure = exc
                         logger.warning(
                             "Failed to ensure thread_meta for %s%s",
                             sanitize_log_param(thread_id),
-                            "" if require_existing_thread else " (non-fatal)",
+                            "" if strict_thread else " (non-fatal)",
                             exc_info=True,
                         )
                 elif abort_task not in done:
@@ -1763,7 +1834,7 @@ async def start_run(
                         sanitize_log_param(thread_id),
                         _THREAD_METADATA_SETUP_TIMEOUT_SECONDS,
                     )
-                    if require_existing_thread:
+                    if strict_thread:
                         metadata_failure = TimeoutError("Timed out verifying existing thread metadata")
             finally:
                 if metadata_task.done():
@@ -1780,7 +1851,7 @@ async def start_run(
                 if not abort_task.done():
                     abort_task.cancel()
                     abort_task.add_done_callback(_consume_task_result)
-            if metadata_failure is not None and require_existing_thread:
+            if metadata_failure is not None and strict_thread:
                 await run_mgr.fail_start_if_pending(
                     record.run_id,
                     error=str(metadata_failure),

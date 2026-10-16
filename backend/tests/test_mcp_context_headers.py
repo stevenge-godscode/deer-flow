@@ -505,6 +505,7 @@ def test_registered_last_so_request_secrets_win():
         "oauth",
         "user_scoped_auth_interceptor",
         "context_headers_interceptor",
+        "tool_file_interceptor",
     ]
 
 
@@ -513,7 +514,7 @@ def test_shared_assembly_skips_when_not_configured():
         mcp_servers={"plain": McpServerConfig(enabled=True, type="http", url="https://x.example.com")},
         skills={},
     )
-    assert build_mcp_tool_interceptors(config, oauth_builder=lambda _cfg: None) == []
+    assert [item.__name__ for item in build_mcp_tool_interceptors(config, oauth_builder=lambda _cfg: None)] == ["tool_file_interceptor"]
 
 
 # ---------------------------------------------------------------------------

@@ -52,6 +52,7 @@ class MemoryThreadMetaStore(ThreadMetaStore):
         display_name: str | None = None,
         metadata: dict | None = None,
         project_id: str | None = None,
+        if_absent: bool = False,
     ) -> dict:
         # Memory mode has no projects backend in Phase 1. Fail closed exactly
         # like the SQL store does for a missing/foreign/archived project: a
@@ -68,6 +69,8 @@ class MemoryThreadMetaStore(ThreadMetaStore):
             existing = await self._store.aget(THREADS_NS, thread_id)
             if existing is not None and resolved_user_id is not None and existing.value.get("user_id") != resolved_user_id:
                 raise ThreadOwnershipConflictError(thread_id)
+            if existing is not None and if_absent:
+                return dict(existing.value)
             now = now_iso()
             record: dict[str, Any] = {
                 "thread_id": thread_id,
@@ -82,6 +85,20 @@ class MemoryThreadMetaStore(ThreadMetaStore):
                 "updated_at": now,
             }
             await self._store.aput(THREADS_NS, thread_id, record)
+            return record
+
+    async def ensure_incarnation(self, thread_id: str, *, user_id: str | None | _AutoSentinel = AUTO) -> dict | None:
+        owner = resolve_user_id(user_id, method_name="MemoryThreadMetaStore.ensure_incarnation")
+        if not isinstance(owner, str) or not owner:
+            raise ValueError("An explicit owner is required")
+        async with self._thread_locks.hold(thread_id):
+            item = await self._store.aget(THREADS_NS, thread_id)
+            if item is None or item.value.get("user_id") != owner:
+                return None
+            record = dict(item.value)
+            if record.get("incarnation") is None:
+                record["incarnation"] = uuid.uuid4().hex
+                await self._store.aput(THREADS_NS, thread_id, record)
             return record
 
     async def claim_unowned(self, thread_id: str, owner: str) -> bool:

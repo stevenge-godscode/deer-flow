@@ -8,6 +8,7 @@ from typing import Any
 from deerflow.config.extensions_config import ExtensionsConfig
 from deerflow.mcp.context_headers import build_context_headers_interceptor
 from deerflow.mcp.oauth import build_oauth_tool_interceptor
+from deerflow.mcp.tool_files import build_tool_file_interceptor
 from deerflow.mcp.user_scoped_auth import build_user_scoped_auth_interceptor
 from deerflow.reflection import resolve_variable
 
@@ -73,6 +74,8 @@ def build_mcp_tool_interceptors(
                 f"Failed to load MCP interceptor {interceptor_path}",
                 exc_info=True,
             )
+    # Innermost: receive transport bytes before custom model-view projection.
+    interceptors.append(build_tool_file_interceptor())
     return interceptors
 
 
