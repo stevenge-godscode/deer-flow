@@ -16,7 +16,6 @@ from deerflow.authz.outcome import AuthorizationOutcome, put_authorization_outco
 from deerflow.authz.principal import normalize_authz_attributes
 from deerflow.guardrails.provider import GuardrailDecision, GuardrailProvider, GuardrailReason, GuardrailRequest
 from deerflow.runtime.events.catalog import MIDDLEWARE_GUARDRAIL_TAG
-from deerflow.tools.mcp_metadata import get_mcp_source, is_mcp_tool
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +74,10 @@ class GuardrailMiddleware(AgentMiddleware[AgentState]):
         return context if isinstance(context, dict) else {}
 
     def _build_request(self, request: ToolCallRequest, context: dict) -> GuardrailRequest:
+        # Tool package initialization also imports the subagent executor. Keep
+        # concrete provenance lookup at invocation so cold imports stay acyclic.
+        from deerflow.tools.mcp_metadata import get_mcp_source, is_mcp_tool
+
         return GuardrailRequest(
             tool_name=str(request.tool_call.get("name", "")),
             tool_input=request.tool_call.get("args", {}),

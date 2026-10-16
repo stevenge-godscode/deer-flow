@@ -16,6 +16,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from deerflow.authz.provider import AuthorizationAdmissionDenied, AuthorizationProvider, AuthzDecision, AuthzReason, AuthzRequest, Principal
+from deerflow.constants import DEFAULT_SKILLS_CONTAINER_PATH
 from deerflow.reflection import resolve_variable
 from deerflow.runtime.context_keys import PROJECT_CONTEXT_KEY
 
@@ -93,7 +94,7 @@ class ScopedAuthorizationProvider:
     requires_tool_origin = True
     requires_infrastructure_authorization = True
 
-    def __init__(self, *, policy_path: str, delegate: AuthorizationProvider | None = None, delegate_use: str | None = None, delegate_config: dict | None = None, skill_root: str = "/mnt/skills"):
+    def __init__(self, *, policy_path: str, delegate: AuthorizationProvider | None = None, delegate_use: str | None = None, delegate_config: dict | None = None, skill_root: str = DEFAULT_SKILLS_CONTAINER_PATH):
         if delegate is not None and delegate_use is not None:
             raise ValueError("Specify exactly one delegate")
         if delegate is None:
