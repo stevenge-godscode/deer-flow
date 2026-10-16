@@ -51,11 +51,10 @@ async def safe_app_config_async() -> AppConfig | None:
     return await asyncio.to_thread(safe_app_config)
 
 
-# Sandbox is a single shared resource (the execution environment), not a named
-# catalog like tools/models/skills. The target is therefore a sentinel "*" that
-# means "the sandbox as a whole"; RBAC ``allow: ["*"]`` / ``allow: true`` permits
-# it, ``allow: []`` / ``allow: false`` denies it.
-_SANDBOX_TARGET = "*"
+# Authorization precedes acquisition, so this names the single sandbox
+# execution capability, not a container ID or a wildcard grant. Legacy RBAC
+# allow:["*"] / allow:true still matches it through the existing policy rules.
+SANDBOX_EXECUTION_TARGET = "default"
 
 
 def _resolve_authorization_inputs(
@@ -122,7 +121,7 @@ async def _resolve_authorization_inputs_async(
 
 
 def _authorization_request(principal: Principal) -> AuthzRequest:
-    return AuthzRequest(principal=principal, resource="sandbox", action="execute", target=_SANDBOX_TARGET)
+    return AuthzRequest(principal=principal, resource="sandbox", action="execute", target=SANDBOX_EXECUTION_TARGET)
 
 
 def _enforce_decision(decision: AuthzDecision, *, principal: Principal, method_name: str) -> None:

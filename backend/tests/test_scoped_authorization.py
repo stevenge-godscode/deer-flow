@@ -499,3 +499,36 @@ def test_live_fence_restores_only_original_authority_after_explicit_regrant(env,
     delegate.denied.clear()
     assert provider.authorize(request).allow
     assert provider.filter_resources(principal, "tool", ["read_fact", "newly-granted"]) == ["read_fact"]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_actual_sandbox_gate_matches_exact_scope_and_central_authority(env, monkeypatch, asynchronous):
+    import asyncio
+    from types import SimpleNamespace
+
+    from deerflow.authz import sandbox_authz
+    from deerflow.config.authorization_config import AuthorizationConfig
+    from deerflow.sandbox.exceptions import SandboxAuthorizationError
+
+    path, policy, delegate, provider, context, _, _ = env
+    policy["grants"][0]["capabilities"].append({"resource": "sandbox", "action": "execute", "target": "default"})
+    path.write_text(json.dumps(policy))
+    context = {**context, "authz_attributes": provider.prepare_run_attributes(context)}
+    app_config = SimpleNamespace(authorization=AuthorizationConfig(enabled=True))
+    monkeypatch.setattr(sandbox_authz, "resolve_authorization_provider", lambda cfg: provider)
+
+    def invoke():
+        if asynchronous:
+            return asyncio.run(sandbox_authz.authorize_sandbox_execution_async(context=context, app_config=app_config))
+        return sandbox_authz.authorize_sandbox_execution(context=context, app_config=app_config)
+
+    invoke()
+    assert ("sandbox", "execute", "default") in delegate.calls
+    delegate.denied.add(("sandbox", "execute", "default"))
+    with pytest.raises(SandboxAuthorizationError):
+        invoke()
+    delegate.denied.clear()
+    policy["grants"][0]["capabilities"] = [cap for cap in policy["grants"][0]["capabilities"] if cap["resource"] != "sandbox"]
+    path.write_text(json.dumps(policy))
+    with pytest.raises(SandboxAuthorizationError):
+        invoke()
