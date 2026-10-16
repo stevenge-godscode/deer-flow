@@ -70,3 +70,6 @@ RUN_EVENT_CATEGORY_MAX_LENGTH = 16
 # event identity also lives here rather than in the runtime event catalog.
 WORKSPACE_CHANGES_EVENT_TYPE = "workspace_changes"
 WORKSPACE_CHANGES_EVENT_CATEGORY = "workspace"
+
+# Exact singleton capability checked before a sandbox container is acquired.
+SANDBOX_EXECUTION_TARGET = "default"

@@ -73,3 +73,5 @@ execution, durable raw paths, physical skill projection and restricted mounts.
 Offline gates do not establish actual AIO mount manifests, ordinary OIDC
 permissions, persisted audit readback or live model answer quality. Those DEV
 integration gates remain required before environment promotion.
+
+Sandbox execution uses the exact singleton target `default` (resource `sandbox`, action `execute`) before container acquisition. It is not the wildcard `*` or a container ID; grant it explicitly in both central policy and the operator scope. Legacy RBAC wildcard/boolean policies still match through the existing RBAC rules. Custom exact-target providers must use this identity.

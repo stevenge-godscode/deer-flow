@@ -47,6 +47,7 @@ from deerflow.authz.provider import AuthorizationAdmissionDenied
 from deerflow.authz.run_scope import bind_run_authorization_attributes
 from deerflow.config.app_config import get_app_config
 from deerflow.config.database_config import resolve_checkpoint_graph_cache_max
+from deerflow.config.definition_snapshot import bind_agent_definition_reference
 from deerflow.projects.context import PROJECT_CONTEXT_MESSAGE_MARKER, resolve_project_context
 from deerflow.runtime import (
     END_SENTINEL,
@@ -73,7 +74,7 @@ from deerflow.runtime.checkpoint_mode import (
     inject_checkpoint_mode,
 )
 from deerflow.runtime.checkpoint_state import graph_state_schema
-from deerflow.runtime.context_keys import PROJECT_CONTEXT_KEY
+from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY, AGENT_DEFINITION_METADATA_KEY, PROJECT_CONTEXT_KEY
 from deerflow.runtime.events.message_identity import MESSAGE_SEQ_KEY
 from deerflow.runtime.goal import goal_thread_lock
 from deerflow.runtime.journal import build_checkpoint_history_seed_events
@@ -226,7 +227,7 @@ async def _ensure_thread_metadata(
             # membership key: run admission never modifies project membership —
             # the column is written only by POST /api/threads and
             # /threads/{id}/move — so the key must not persist either.
-            if key not in (DEERFLOW_TRACE_METADATA_KEY, THREAD_PROJECT_METADATA_KEY)
+            if key not in (DEERFLOW_TRACE_METADATA_KEY, THREAD_PROJECT_METADATA_KEY, AGENT_DEFINITION_METADATA_KEY)
         }
         await thread_store.create(
             record.thread_id,
@@ -552,6 +553,7 @@ _SERVER_OWNED_RUNTIME_CONTEXT_KEYS: frozenset[str] = (
             # at admission from threads_meta; a client-supplied value must
             # never survive in either run-config section.
             PROJECT_CONTEXT_KEY,
+            AGENT_DEFINITION_CONTEXT_KEY,
         }
     )
     | SANDBOX_SERVER_OWNED_CONTEXT_KEYS
@@ -1343,37 +1345,61 @@ async def apply_checkpoint_to_run_config(
     body: Any,
     thread_id: str,
     request: Request,
-) -> None:
+) -> dict[str, str] | None:
     """Validate an optional run checkpoint and attach it to RunnableConfig."""
+    # LangGraph moves unknown root keys into configurable. Reject a flat
+    # foreign thread before any checkpoint read and remove its duplicate key.
+    flat_thread_id = config.pop("thread_id", None)
+    if flat_thread_id is not None and str(flat_thread_id) != thread_id:
+        raise HTTPException(status_code=400, detail="Config thread_id does not match request thread_id")
     checkpoint = getattr(body, "checkpoint", None)
-    checkpoint_id = getattr(body, "checkpoint_id", None)
-    checkpoint_ns = ""
-    checkpoint_map = None
+    if checkpoint is not None and not isinstance(checkpoint, Mapping):
+        raise HTTPException(status_code=400, detail="checkpoint must be an object")
+    checkpoint = checkpoint or {}
+    checkpoint_thread_id = checkpoint.get("thread_id")
+    if checkpoint_thread_id is not None and str(checkpoint_thread_id) != thread_id:
+        raise HTTPException(status_code=400, detail="checkpoint thread_id does not match request thread_id")
+    nested = config.get("configurable", {})
+    if not isinstance(nested, dict):
+        raise HTTPException(status_code=400, detail="request config configurable must be an object")
+    if nested.get("thread_id") is not None and str(nested["thread_id"]) != thread_id:
+        raise HTTPException(status_code=400, detail="Config thread_id does not match request thread_id")
+    config.setdefault("configurable", {})["thread_id"] = thread_id
 
-    if checkpoint:
-        if not isinstance(checkpoint, Mapping):
-            raise HTTPException(status_code=400, detail="checkpoint must be an object")
-        checkpoint_thread_id = checkpoint.get("thread_id")
-        if checkpoint_thread_id is not None and str(checkpoint_thread_id) != thread_id:
-            raise HTTPException(status_code=400, detail="checkpoint thread_id does not match request thread_id")
-        raw_checkpoint_id = checkpoint.get("checkpoint_id")
-        if raw_checkpoint_id:
-            checkpoint_id = str(raw_checkpoint_id)
-        raw_checkpoint_ns = checkpoint.get("checkpoint_ns")
-        if raw_checkpoint_ns is not None:
-            checkpoint_ns = str(raw_checkpoint_ns)
-        checkpoint_map = checkpoint.get("checkpoint_map")
+    def selector_value(key, *values):
+        present = [value for value in values if value is not None]
+        if any(value != present[0] for value in present[1:]):
+            raise HTTPException(status_code=400, detail=f"Conflicting {key} selectors")
+        return present[0] if present else None
 
-    if not checkpoint_id:
-        return
+    checkpoint_id = selector_value("checkpoint_id", checkpoint.get("checkpoint_id"), getattr(body, "checkpoint_id", None), nested.get("checkpoint_id"), config.get("checkpoint_id"))
+    checkpoint_ns = selector_value("checkpoint_ns", checkpoint.get("checkpoint_ns"), nested.get("checkpoint_ns"), config.get("checkpoint_ns")) or ""
+    checkpoint_map = selector_value("checkpoint_map", checkpoint.get("checkpoint_map"), nested.get("checkpoint_map"), config.get("checkpoint_map"))
+    if not isinstance(checkpoint_ns, str) or (checkpoint_id is not None and (not isinstance(checkpoint_id, str) or not checkpoint_id)):
+        raise HTTPException(status_code=400, detail="Invalid checkpoint selector")
+    if checkpoint_map is not None:
+        if not isinstance(checkpoint_map, dict) or any(not isinstance(key, str) or not isinstance(value, str) or not value for key, value in checkpoint_map.items()):
+            raise HTTPException(status_code=400, detail="Invalid checkpoint map")
+        mapped = checkpoint_map.get(checkpoint_ns)
+        if mapped is not None:
+            checkpoint_id = selector_value("checkpoint_id", checkpoint_id, mapped)
+        elif checkpoint_id is None and checkpoint_map:
+            raise HTTPException(status_code=400, detail="Checkpoint map does not identify the selected namespace")
+    for key in ("checkpoint_id", "checkpoint_ns", "checkpoint_map"):
+        config.pop(key, None)
+    command = getattr(body, "command", None)
+    resume_latest = not checkpoint_id and (bool(checkpoint_ns) or isinstance(command, Mapping) and command.get("resume") is not None)
+    if not checkpoint_id and not resume_latest:
+        return None
 
     read_config: dict[str, Any] = {
         "configurable": {
             "thread_id": thread_id,
             "checkpoint_ns": checkpoint_ns,
-            "checkpoint_id": str(checkpoint_id),
         }
     }
+    if checkpoint_id:
+        read_config["configurable"]["checkpoint_id"] = str(checkpoint_id)
     if checkpoint_map is not None:
         read_config["configurable"]["checkpoint_map"] = checkpoint_map
 
@@ -1384,7 +1410,36 @@ async def apply_checkpoint_to_run_config(
         logger.exception("Failed to validate checkpoint %s for thread %s", checkpoint_id, sanitize_log_param(thread_id))
         raise HTTPException(status_code=500, detail="Failed to validate checkpoint") from exc
     if checkpoint_tuple is None:
+        if resume_latest:
+            return None
         raise HTTPException(status_code=404, detail=f"Checkpoint {checkpoint_id} not found")
+
+    if resume_latest:
+        saved_config = getattr(checkpoint_tuple, "config", None)
+        saved_selector = saved_config.get("configurable", {}) if isinstance(saved_config, Mapping) else {}
+        checkpoint_id = saved_selector.get("checkpoint_id")
+        if not isinstance(checkpoint_id, str) or not checkpoint_id:
+            raise HTTPException(status_code=409, detail="Resume checkpoint has no stable identity")
+        checkpoint_ns = saved_selector.get("checkpoint_ns", "")
+        if not isinstance(checkpoint_ns, str):
+            raise HTTPException(status_code=409, detail="Invalid resume checkpoint namespace")
+
+    from deerflow.config.definition_snapshot import validate_agent_definition_reference
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_DIGEST_METADATA_KEY, CHECKPOINT_AGENT_NAME_METADATA_KEY
+
+    saved_metadata = getattr(checkpoint_tuple, "metadata", None)
+    expected_reference = None
+    if isinstance(saved_metadata, Mapping) and AGENT_DEFINITION_DIGEST_METADATA_KEY in saved_metadata:
+        try:
+            expected_reference = validate_agent_definition_reference(
+                {
+                    "schema": "deerflow.agent-definition-ref/v1",
+                    "name": saved_metadata.get(CHECKPOINT_AGENT_NAME_METADATA_KEY),
+                    "digest": saved_metadata[AGENT_DEFINITION_DIGEST_METADATA_KEY],
+                }
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="Checkpoint Agent definition is invalid") from exc
 
     configurable = config.setdefault("configurable", {})
     if not isinstance(configurable, dict):
@@ -1394,6 +1449,8 @@ async def apply_checkpoint_to_run_config(
     configurable["checkpoint_id"] = str(checkpoint_id)
     if checkpoint_map is not None:
         configurable["checkpoint_map"] = checkpoint_map
+
+    return expected_reference
 
 
 async def ensure_checkpoint_history_seeded(
@@ -1585,7 +1642,7 @@ async def start_run(
         run_metadata[DEERFLOW_TRACE_METADATA_KEY] = ensure_trace_id()
 
         config = build_run_config(thread_id, body.config, run_metadata, assistant_id=body.assistant_id)
-        await apply_checkpoint_to_run_config(config, body=body, thread_id=thread_id, request=request)
+        checkpoint_definition = await apply_checkpoint_to_run_config(config, body=body, thread_id=thread_id, request=request)
 
         # Merge DeerFlow-specific context overrides into both ``configurable`` and ``context``.
         # The ``context`` field is a custom extension for the langgraph-compat layer
@@ -1651,12 +1708,22 @@ async def start_run(
         )
         if project_context is not None:
             config["context"][PROJECT_CONTEXT_KEY] = project_context
+        if checkpoint_definition is not None:
+            selected = {**config.get("configurable", {}), **config.get("context", {})}
+            if selected.get("is_bootstrap") or selected.get("agent_name") not in (None, checkpoint_definition["name"]):
+                raise HTTPException(status_code=409, detail="Resume must use the checkpoint Agent definition")
+            for section in ("context", "configurable"):
+                config.setdefault(section, {})["agent_name"] = checkpoint_definition["name"]
         try:
             await bind_run_authorization_attributes(config, get_app_config().authorization, project_context=project_context)
         except AuthorizationAdmissionDenied as exc:
             # Reject before any Agent/model is constructed, including middleware
             # that could read memory without a tool call.
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        try:
+            await bind_agent_definition_reference(config, run_metadata, user_id=config["context"].get("user_id"), expected_reference=checkpoint_definition)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="Published Agent definition does not match the checkpoint") from exc
 
         async def run_after_metadata(record: RunRecord) -> None:
             metadata_task = asyncio.create_task(

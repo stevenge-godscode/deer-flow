@@ -67,6 +67,7 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
         *,
         available_skills: set[str] | None = None,
         owns_agent_skill_projection: bool = True,
+        skill_body_sha256: dict[str, str] | None = None,
     ):
         """Initialize sandbox middleware.
 
@@ -83,6 +84,10 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
         self._lazy_init = lazy_init
         self._available_skills = set(available_skills) if available_skills is not None else None
         self._owns_agent_skill_projection = owns_agent_skill_projection
+        self._skill_body_sha256 = dict(skill_body_sha256) if skill_body_sha256 is not None else None
+
+    def release_policy_parameters(self) -> dict[str, object]:
+        return {"available_skills": sorted(self._available_skills) if self._available_skills is not None else None, "owns_agent_skill_projection": self._owns_agent_skill_projection, "skill_body_sha256": self._skill_body_sha256}
 
     def _prepare_agent_skill_projection(self, thread_id: str, *, user_id: str):
         """Build the run's physical skill view before any sandbox is reused."""
@@ -116,6 +121,19 @@ class SandboxMiddleware(AgentMiddleware[SandboxMiddlewareState]):
 
         app_config = get_app_config()
         storage = get_or_new_user_skill_storage(user_id, app_config=app_config)
+        if self._skill_body_sha256 is not None:
+            if provider.supports_immutable_skill_projection is not True:
+                raise SandboxRuntimeError("Sandbox provider cannot enforce immutable skill projection")
+            from deerflow.skills.definition import verified_skill, verify_projected_skill_bodies
+
+            selected = [skill for skill in storage.load_skills(enabled_only=True) if self._available_skills is not None and skill.name in self._available_skills]
+            if {skill.name for skill in selected} != self._available_skills:
+                raise SandboxRuntimeError("Published skills are unavailable")
+            for skill in selected:
+                verified_skill(skill, self._skill_body_sha256)
+            projection = ensure_thread_skill_projection(storage, thread_id, self._available_skills)
+            verify_projected_skill_bodies(selected, projection, self._skill_body_sha256)
+            return projection
         return ensure_thread_skill_projection(storage, thread_id, self._available_skills)
 
     @staticmethod

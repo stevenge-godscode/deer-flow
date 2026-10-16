@@ -348,7 +348,7 @@ def test_authorize_sandbox_calls_provider_with_correct_request(monkeypatch):
 
     assert provider.request.resource == "sandbox"
     assert provider.request.action == "execute"
-    assert provider.request.target == "*"
+    assert provider.request.target == "default"
 
 
 # ── Gateway auxiliary paths: uploads / artifacts sync ──────────────────

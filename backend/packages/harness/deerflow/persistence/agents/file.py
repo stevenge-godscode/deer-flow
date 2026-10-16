@@ -1,9 +1,10 @@
-"""Filesystem-backed agent store — today's per-user layout, behaviour-preserving.
+"""Filesystem-backed mutable and opt-in immutable Agent definitions.
 
 The read methods are the pre-refactor bodies of ``load_agent_config`` /
 ``load_agent_soul`` / ``list_custom_agents`` (so the free functions in
 :mod:`deerflow.config.agents_config` dispatch here without changing behaviour).
-Writes use a staged temp-file + atomic ``os.replace`` commit — the crash-safety
+Published config and SOUL are read from one canonical ``definition.json``.
+Legacy writes use a staged temp-file + atomic ``os.replace`` commit — the crash-safety
 the ``update_agent`` tool already had, applied uniformly to create/update.
 
 Path/user resolution is done through the :mod:`deerflow.config.agents_config`
@@ -14,6 +15,7 @@ tests target.
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import tempfile
@@ -31,10 +33,14 @@ from deerflow.config.agents_config import (
     validate_agent_name,
 )
 from deerflow.persistence.agents.base import (
+    AgentDefinitionSnapshot,
     AgentDeleteOutcome,
     AgentExistsError,
     AgentStore,
+    ImmutableAgentDefinitionError,
+    definition_document,
     parse_agent_config,
+    snapshot_from_document,
 )
 from deerflow.runtime.user_context import DEFAULT_USER_ID
 
@@ -45,6 +51,9 @@ class FileAgentStore(AgentStore):
     def get(self, name: str, *, user_id: str | None = None) -> AgentConfig:
         name = validate_agent_name(name)
         agent_dir = resolve_agent_dir(name, user_id=user_id)
+        published = self._published_snapshot(agent_dir, name)
+        if published is not None:
+            return published.config
         config_file = agent_dir / "config.yaml"
         if not agent_dir.exists():
             raise FileNotFoundError(f"Agent directory not found: {agent_dir}")
@@ -55,7 +64,25 @@ class FileAgentStore(AgentStore):
                 data: dict[str, Any] = yaml.safe_load(f) or {}
         except yaml.YAMLError as e:
             raise ValueError(f"Failed to parse agent config {config_file}: {e}") from e
+        if data.get("immutable_definition") is True:
+            raise ValueError("Published Agent definition.json is missing")
         return parse_agent_config(data, name)
+
+    @staticmethod
+    def _published_snapshot(agent_dir: Path, name: str) -> AgentDefinitionSnapshot | None:
+        path = agent_dir / "definition.json"
+        if not path.exists():
+            return None
+        document = json.loads(path.read_text(encoding="utf-8"))
+        snapshot = snapshot_from_document(document, name)
+        if not snapshot.config.immutable_definition:
+            raise ValueError("Canonical published definition must be immutable")
+        return snapshot
+
+    def get_definition_snapshot(self, name: str, *, user_id: str | None = None) -> AgentDefinitionSnapshot:
+        name = validate_agent_name(name)
+        published = self._published_snapshot(resolve_agent_dir(name, user_id=user_id), name)
+        return published if published is not None else super().get_definition_snapshot(name, user_id=user_id)
 
     def exists(self, name: str, *, user_id: str | None = None) -> bool:
         name = validate_agent_name(name)
@@ -65,6 +92,11 @@ class FileAgentStore(AgentStore):
 
     def get_soul(self, name: str, *, user_id: str | None = None) -> str | None:
         agent_dir = resolve_agent_dir(name, user_id=user_id)
+        published = self._published_snapshot(agent_dir, validate_agent_name(name))
+        if published is not None:
+            return published.soul
+        if (agent_dir / "config.yaml").exists():
+            self.get(name, user_id=user_id)  # never downgrade a missing canonical bundle
         soul_path = agent_dir / SOUL_FILENAME
         # resolve_agent_dir requires config.yaml; SOUL.md loading does not, so
         # when the resolver fell back to its default path (no qualifying dir),
@@ -97,7 +129,7 @@ class FileAgentStore(AgentStore):
             for entry in sorted(root.iterdir()):
                 if not entry.is_dir() or entry.name in seen:
                     continue
-                if not (entry / "config.yaml").exists():
+                if not (entry / "config.yaml").exists() and not (entry / "definition.json").exists():
                     logger.debug("Skipping %s: no config.yaml", entry.name)
                     continue
                 try:
@@ -135,7 +167,17 @@ class FileAgentStore(AgentStore):
             # than a generic 500 — mirrors SqlAgentStore's IntegrityError path.
             raise AgentExistsError(f"Agent '{name}' already exists for user '{effective_user}'") from e
         try:
+            published = parse_agent_config(config, name).immutable_definition if "immutable_definition" in config else False
             self._write(agent_dir, config, soul)
+            if published:
+                # The only authority for published execution is this one file.
+                # config.yaml/SOUL.md remain compatibility projections.
+                document = definition_document(config, soul, name)
+                temporary = _stage_temp(agent_dir / "definition.json", json.dumps(document, ensure_ascii=False, sort_keys=True) + "\n")
+                try:
+                    temporary.replace(agent_dir / "definition.json")
+                finally:
+                    temporary.unlink(missing_ok=True)
         except Exception:
             # The directory was newly created for this call; a failed write
             # must not leave an empty/partial agent dir behind.
@@ -146,6 +188,10 @@ class FileAgentStore(AgentStore):
         name = validate_agent_name(name)
         effective_user = user_id or _ac.get_effective_user_id()
         agent_dir = _ac.get_paths().user_agent_dir(effective_user, name)
+        if (agent_dir / "definition.json").exists() or ((agent_dir / "config.yaml").exists() and self.get(name, user_id=effective_user).immutable_definition):
+            raise ImmutableAgentDefinitionError("Immutable Agent definitions cannot be changed; create a new version")
+        if config is not None and config.get("immutable_definition") is not None and config.get("immutable_definition") is not False:
+            raise ImmutableAgentDefinitionError("Publish immutable definitions through create with a new name")
         pre_existing = agent_dir.exists()
         agent_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -166,6 +212,8 @@ class FileAgentStore(AgentStore):
             # A legacy shared-layout agent is intentionally left in place (the
             # write path never targets it); report it distinctly.
             return "legacy" if paths.agent_dir(name).exists() else "missing"
+        if (agent_dir / "definition.json").exists() or ((agent_dir / "config.yaml").exists() and self.get(name, user_id=effective_user).immutable_definition):
+            raise ImmutableAgentDefinitionError("Immutable Agent definitions cannot be removed; select a new version")
         if not (agent_dir / "config.yaml").is_file():
             # The directory holds memory/facts data but is not a custom agent
             # (no config.yaml) — preserve it rather than deleting a user's memory
@@ -209,14 +257,14 @@ class FileAgentStore(AgentStore):
                 if not agents_root.exists():
                     continue
                 for entry in sorted(agents_root.iterdir()):
-                    if entry.is_dir() and (entry / "config.yaml").exists():
+                    if entry.is_dir() and ((entry / "config.yaml").exists() or (entry / "definition.json").exists()):
                         key = (user_entry.name, entry.name)
                         discovered.append(key)
                         seen.add(key)
         legacy_root = paths.agents_dir
         if legacy_root.exists():
             for entry in sorted(legacy_root.iterdir()):
-                if entry.is_dir() and (entry / "config.yaml").exists() and (DEFAULT_USER_ID, entry.name) not in seen:
+                if entry.is_dir() and ((entry / "config.yaml").exists() or (entry / "definition.json").exists()) and (DEFAULT_USER_ID, entry.name) not in seen:
                     discovered.append((DEFAULT_USER_ID, entry.name))
         return discovered
 

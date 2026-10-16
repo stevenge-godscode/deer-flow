@@ -21,6 +21,8 @@ class SandboxProvider(ABC):
     # provider's current Agent-accessible tool surface. Host-backed providers
     # must return False whenever shell access can bypass managed path mappings.
     supports_agent_skill_isolation: bool = False
+    # Requires readonly mounts of the verified physical thread projection.
+    supports_immutable_skill_projection: bool = False
 
     @abstractmethod
     def acquire(self, thread_id: str | None = None, *, user_id: str | None = None) -> str:

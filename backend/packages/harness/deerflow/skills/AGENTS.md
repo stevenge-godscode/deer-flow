@@ -38,3 +38,11 @@ Lets a caller pass per-request, short-lived end-user credentials (e.g. an ERP to
 - Build archives from captured bytes and require the preview's revision. Preserve file contents, empty directories, and normalized executable flags; import must not restore privileged permission bits.
 - Keep traversal, YAML parsing, and archive construction bounded and cancellable. Reject unsupported filesystem operations rather than following links; report limits instead of truncating results. Preserve YAML preflight before object construction.
 - Export includes raw saved files and is not a secret audit. Return relative paths and generic errors without leaking source content. See the [export API contract](../../../../docs/API.md#export-a-custom-skill) for response fields and limits.
+
+
+Published native Agent skill bodies use `definition.py` exact-byte checks and
+currently accept single-file packages only. Parse policy/secret metadata from
+verified bytes before testing conditions; do not discard one invalid active
+reference and thereby widen the remaining set. Verify the actual copied thread
+projection before sandbox acquisition. Unsupported providers and embedded
+published execution fail closed. Details: `backend/docs/IMMUTABLE_AGENT_DEFINITIONS.md`.

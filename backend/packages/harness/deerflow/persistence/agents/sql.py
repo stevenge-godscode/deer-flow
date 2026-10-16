@@ -28,10 +28,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from deerflow.config.agents_config import AgentConfig
 from deerflow.config.paths import get_paths
 from deerflow.persistence.agents.base import (
+    AgentDefinitionSnapshot,
     AgentDeleteOutcome,
     AgentExistsError,
     AgentStore,
+    ImmutableAgentDefinitionError,
+    definition_document,
     parse_agent_config,
+    snapshot_from_document,
 )
 from deerflow.persistence.agents.model import AgentRow
 from deerflow.runtime.user_context import get_effective_user_id
@@ -114,6 +118,15 @@ class SqlAgentStore(AgentStore):
             raise FileNotFoundError(f"Agent config not found: {name} (user {effective_user})")
         return parse_agent_config(row.config or {}, row.name)
 
+    def get_definition_snapshot(self, name: str, *, user_id: str | None = None) -> AgentDefinitionSnapshot:
+        effective_user = user_id or get_effective_user_id()
+        with self._Session() as session:
+            row = self._row(session, name, effective_user)
+            if row is None:
+                raise FileNotFoundError(f"Agent config not found: {name}")
+            # One SELECT supplies config and SOUL from the same committed row.
+            return snapshot_from_document(definition_document(row.config or {}, row.soul or "", row.name, normalize_config=False), row.name)
+
     def exists(self, name: str, *, user_id: str | None = None) -> bool:
         effective_user = user_id or get_effective_user_id()
         with self._Session() as session:
@@ -142,6 +155,10 @@ class SqlAgentStore(AgentStore):
 
     def create(self, name: str, config: dict, soul: str, *, user_id: str | None = None) -> None:
         effective_user = user_id or get_effective_user_id()
+        if "immutable_definition" in config:
+            parsed = parse_agent_config({**config, "name": name.lower()}, name.lower())
+            if parsed.immutable_definition:
+                config = parsed.model_dump(mode="json")
         now = datetime.now(UTC)
         row = AgentRow(
             id=uuid.uuid4().hex,
@@ -161,6 +178,8 @@ class SqlAgentStore(AgentStore):
             raise AgentExistsError(f"Agent '{name}' already exists for user '{effective_user}'") from e
 
     def update(self, name: str, config: dict | None, soul: str | None, *, user_id: str | None = None) -> None:
+        if config is not None and config.get("immutable_definition") is not None and config.get("immutable_definition") is not False:
+            raise ImmutableAgentDefinitionError("Publish immutable definitions through create with a new name")
         effective_user = user_id or get_effective_user_id()
         with self._Session() as session:
             row = self._row(session, name, effective_user)
@@ -194,6 +213,8 @@ class SqlAgentStore(AgentStore):
 
     @staticmethod
     def _apply_update(row: AgentRow, config: dict | None, soul: str | None) -> None:
+        if (row.config or {}).get("immutable_definition") is True:
+            raise ImmutableAgentDefinitionError("Immutable Agent definitions cannot be changed; create a new version")
         if config is not None:
             row.config = _config_document(config)
         if soul is not None:
@@ -202,9 +223,17 @@ class SqlAgentStore(AgentStore):
     def delete(self, name: str, *, user_id: str | None = None) -> AgentDeleteOutcome:
         effective_user = user_id or get_effective_user_id()
         with self._Session() as session:
-            result = session.execute(delete(AgentRow).where(AgentRow.user_id == effective_user, AgentRow.name == name.lower()))
-            session.commit()
-            row_deleted = result.rowcount > 0
+            row = self._row(session, name, effective_user)
+            if row is not None and (row.config or {}).get("immutable_definition") is True:
+                raise ImmutableAgentDefinitionError("Immutable Agent definitions cannot be removed; select a new version")
+            # Delete only the row observed above. A new publication can appear
+            # between the lookup and DELETE; its natural key is not authority
+            # to delete that different immutable row.
+            row_deleted = False
+            if row is not None:
+                result = session.execute(delete(AgentRow).where(AgentRow.id == row.id))
+                session.commit()
+                row_deleted = result.rowcount > 0
         agent_dir = get_paths().user_agent_dir(effective_user, name)
         if row_deleted:
             # The agent existed as a row; remove any co-located on-disk memory

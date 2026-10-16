@@ -499,3 +499,66 @@ def test_live_fence_restores_only_original_authority_after_explicit_regrant(env,
     delegate.denied.clear()
     assert provider.authorize(request).allow
     assert provider.filter_resources(principal, "tool", ["read_fact", "newly-granted"]) == ["read_fact"]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_actual_sandbox_gate_matches_exact_scope_and_central_authority(env, monkeypatch, asynchronous):
+    import asyncio
+    from types import SimpleNamespace
+
+    from deerflow.authz import sandbox_authz
+    from deerflow.config.authorization_config import AuthorizationConfig
+    from deerflow.sandbox.exceptions import SandboxAuthorizationError
+
+    path, policy, delegate, provider, context, _, _ = env
+    policy["grants"][0]["capabilities"].append({"resource": "sandbox", "action": "execute", "target": "default"})
+    path.write_text(json.dumps(policy))
+    context = {**context, "authz_attributes": provider.prepare_run_attributes(context)}
+    app_config = SimpleNamespace(authorization=AuthorizationConfig(enabled=True))
+    monkeypatch.setattr(sandbox_authz, "resolve_authorization_provider", lambda cfg: provider)
+
+    def invoke():
+        if asynchronous:
+            return asyncio.run(sandbox_authz.authorize_sandbox_execution_async(context=context, app_config=app_config))
+        return sandbox_authz.authorize_sandbox_execution(context=context, app_config=app_config)
+
+    invoke()
+    assert ("sandbox", "execute", "default") in delegate.calls
+    delegate.denied.add(("sandbox", "execute", "default"))
+    with pytest.raises(SandboxAuthorizationError):
+        invoke()
+    delegate.denied.clear()
+    policy["grants"][0]["capabilities"] = [cap for cap in policy["grants"][0]["capabilities"] if cap["resource"] != "sandbox"]
+    path.write_text(json.dumps(policy))
+    with pytest.raises(SandboxAuthorizationError):
+        invoke()
+
+
+@pytest.mark.parametrize(
+    "rule,allowed",
+    [
+        ({"allow": True}, True),
+        ({"allow": "*"}, True),
+        ({"allow": ["*"]}, True),
+        ({"allow": ["default"]}, True),
+        ({"allow": False}, False),
+        ({"allow": []}, False),
+        ({"allow": True, "deny": ["*"]}, False),
+        ({"allow": ["default"], "deny": ["*"]}, False),
+        ({"allow": ["*"], "deny": ["default"]}, False),
+    ],
+)
+def test_sandbox_rbac_preserves_legacy_singleton_allow_and_deny(rule, allowed):
+    from deerflow.authz.rbac import RbacAuthorizationProvider
+
+    provider = RbacAuthorizationProvider(roles={"user": {"sandbox": rule}})
+    request = AuthzRequest(Principal(user_id="owner-a", role="user"), "sandbox", "execute", "default")
+    assert provider.authorize(request).allow is allowed
+    assert provider.filter_resources(request.principal, "sandbox", ["default"]) == (["default"] if allowed else [])
+
+
+def test_sandbox_legacy_alias_does_not_turn_tool_lists_into_globs():
+    from deerflow.authz.rbac import RbacAuthorizationProvider
+
+    provider = RbacAuthorizationProvider(roles={"user": {"tools": {"allow": ["*"]}}})
+    assert not provider.authorize(AuthzRequest(Principal(user_id="owner-a", role="user"), "tool", "call", "read_file")).allow

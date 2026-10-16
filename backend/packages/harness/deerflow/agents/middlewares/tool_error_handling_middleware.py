@@ -169,6 +169,7 @@ def _build_runtime_middlewares(
     authorization_infrastructure_tool_names: frozenset[str] = frozenset(),
     available_skills: set[str] | None = None,
     owns_agent_skill_projection: bool = True,
+    skill_body_sha256: dict[str, str] | None = None,
 ) -> list[AgentMiddleware]:
     """Build shared base middlewares for agent execution."""
     from deerflow.agents.middlewares.input_sanitization_middleware import InputSanitizationMiddleware
@@ -206,6 +207,7 @@ def _build_runtime_middlewares(
             lazy_init=lazy_init,
             available_skills=available_skills,
             owns_agent_skill_projection=owns_agent_skill_projection,
+            **({"skill_body_sha256": skill_body_sha256} if skill_body_sha256 is not None else {}),
         )
     )
 
@@ -325,6 +327,7 @@ def build_lead_runtime_middlewares(
     deferred_setup: "DeferredToolSetup | None" = None,
     available_skills: set[str] | None = None,
     owns_agent_skill_projection: bool = True,
+    skill_body_sha256: dict[str, str] | None = None,
 ) -> list[AgentMiddleware]:
     """Middlewares shared by lead agent runtime before lead-only middlewares."""
     return _build_runtime_middlewares(
@@ -338,6 +341,7 @@ def build_lead_runtime_middlewares(
         authorization_provider=authorization_provider,
         available_skills=available_skills,
         owns_agent_skill_projection=owns_agent_skill_projection,
+        skill_body_sha256=skill_body_sha256,
         authorization_infrastructure_tool_names=(frozenset({deferred_setup.tool_search_tool.name}) if authorization_provider is not None and deferred_setup is not None and deferred_setup.tool_search_tool is not None else frozenset()),
     )
 

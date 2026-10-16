@@ -1968,3 +1968,5 @@ user API paths. See [the scope contract](backend/docs/SCOPED_AUTHORIZATION.md).
 
 The Agent API now exposes the existing `memory_enabled` field on creation,
 updates and reads. Updating unrelated fields preserves its stored value.
+
+Optional native [immutable Agent definitions](backend/docs/IMMUTABLE_AGENT_DEFINITIONS.md) publish versioned config/SOUL and pinned skill bodies through existing data APIs.

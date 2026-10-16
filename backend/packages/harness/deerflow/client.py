@@ -307,20 +307,17 @@ class DeerFlowClient:
         effective_user_id = cfg.get("user_id") or get_effective_user_id()
         agent_config = None
         if self._agent_name is not None:
-            loaded_config_key = (self._agent_name, effective_user_id)
-            if getattr(self, "_loaded_agent_config_key", None) == loaded_config_key:
-                agent_config = self._loaded_agent_config
-            else:
-                try:
-                    agent_config = load_agent_config(self._agent_name, user_id=effective_user_id)
-                except (FileNotFoundError, ValueError):
-                    logger.warning(
-                        "Unable to load config for named agent %s; using the memory-enabled compatibility default",
-                        self._agent_name,
-                        exc_info=True,
-                    )
-                self._loaded_agent_config_key = loaded_config_key
-                self._loaded_agent_config = agent_config
+            # Recheck the named definition before cache reuse. This embedded
+            # variant has no trusted Run admission / physical body-pin path.
+            # Invalid or published definitions must not become legacy defaults.
+            try:
+                agent_config = load_agent_config(self._agent_name, user_id=effective_user_id)
+            except FileNotFoundError:
+                logger.warning("Unable to load config for named agent %s; using the memory-enabled compatibility default", self._agent_name, exc_info=True)
+            if getattr(agent_config, "immutable_definition", False) is True:
+                raise ValueError("Published Agent definitions require native Gateway Run admission; embedded execution is unsupported")
+            self._loaded_agent_config_key = (self._agent_name, effective_user_id)
+            self._loaded_agent_config = agent_config
         memory_enabled = getattr(agent_config, "memory_enabled", True) is not False
 
         authorization_identity = None

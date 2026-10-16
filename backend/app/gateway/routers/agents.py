@@ -6,7 +6,7 @@ import re
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from deerflow.agents.memory.manager import get_memory_manager
 from deerflow.config.agents_api_config import get_agents_api_config
@@ -22,6 +22,7 @@ from deerflow.config.agents_config import (
 from deerflow.config.app_config import get_app_config
 from deerflow.config.paths import get_paths
 from deerflow.persistence.agents import AgentDeleteOutcome, AgentExistsError, get_agent_store
+from deerflow.persistence.agents.base import ImmutableAgentDefinitionError
 from deerflow.runtime.user_context import get_effective_user_id
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,9 @@ class AgentResponse(BaseModel):
     thinking_enabled: bool | None = Field(default=None, description="Per-agent thinking-mode default (None = runtime default)")
     reasoning_effort: ReasoningEffort | None = Field(default=None, description="Per-agent reasoning-effort default (None = runtime default)")
     memory_enabled: bool = Field(default=True, description="Enable this agent's existing memory facilities")
+    immutable_definition: bool = False
+    skill_body_sha256: dict[str, str] = Field(default_factory=dict)
+    definition_digest: str | None = None
     soul: str | None = Field(default=None, description="SOUL.md content")
 
 
@@ -74,7 +78,14 @@ class AgentCreateRequest(BaseModel):
     thinking_enabled: bool | None = Field(default=None, description="Per-agent thinking-mode default (None = runtime default)")
     reasoning_effort: ReasoningEffort | None = Field(default=None, description="Per-agent reasoning-effort default (None = runtime default)")
     memory_enabled: bool = Field(default=True, description="Enable this agent's existing memory facilities")
+    immutable_definition: bool = Field(default=False, strict=True, description="Publish a new immutable definition; further changes need a new name")
+    skill_body_sha256: dict[str, str] = Field(default_factory=dict, description="SHA-256 of the full UTF-8 SKILL.md for every selected skill")
     soul: str = Field(default="", description="SOUL.md content — agent personality and behavioral guardrails")
+
+    @model_validator(mode="after")
+    def _validate_definition_identity(self):
+        AgentConfig(name=self.name.lower(), skills=self.skills, immutable_definition=self.immutable_definition, skill_body_sha256=self.skill_body_sha256)
+        return self
 
 
 class AgentUpdateRequest(BaseModel):
@@ -206,6 +217,9 @@ def _agent_config_to_response(agent_cfg: AgentConfig, include_soul: bool = False
         thinking_enabled=agent_cfg.thinking_enabled,
         reasoning_effort=agent_cfg.reasoning_effort,
         memory_enabled=agent_cfg.memory_enabled,
+        immutable_definition=agent_cfg.immutable_definition,
+        skill_body_sha256=agent_cfg.skill_body_sha256,
+        definition_digest=get_agent_store().get_definition_snapshot(agent_cfg.name, user_id=user_id).digest if agent_cfg.immutable_definition else None,
         soul=soul,
     )
 
@@ -349,6 +363,11 @@ async def create_agent_endpoint(request: AgentCreateRequest) -> AgentResponse:
         config_data["allowed_subagents"] = request.allowed_subagents
     if "memory_enabled" in request.model_fields_set:
         config_data["memory_enabled"] = request.memory_enabled
+    if request.immutable_definition:
+        config_data["immutable_definition"] = True
+        config_data["skill_body_sha256"] = request.skill_body_sha256
+    elif request.skill_body_sha256:
+        config_data["skill_body_sha256"] = request.skill_body_sha256
     # model / model_settings / thinking_enabled / reasoning_effort (issue #4336).
     _apply_model_behavior(config_data, request)
 
@@ -495,6 +514,8 @@ async def update_agent(name: str, request: AgentUpdateRequest) -> AgentResponse:
 
     except HTTPException:
         raise
+    except ImmutableAgentDefinitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as e:
         logger.error(f"Failed to update agent '{name}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to update agent: {str(e)}")
@@ -587,9 +608,18 @@ async def delete_agent(name: str) -> None:
     user_id = get_effective_user_id()
 
     try:
+        existing = await asyncio.to_thread(load_agent_config, name, user_id=user_id)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None and existing.immutable_definition:
+        raise HTTPException(status_code=409, detail="Immutable Agent definitions cannot be removed; select a new version")
+
+    try:
         # Off the event loop: resolve store + cancel → delete → cancel-on-success
         # (get_agent_store / memory manager do blocking config and FS I/O).
         outcome = await asyncio.to_thread(_delete_agent_with_memory_cancel, name, user_id)
+    except ImmutableAgentDefinitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as e:
         logger.error(f"Failed to delete agent '{name}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")

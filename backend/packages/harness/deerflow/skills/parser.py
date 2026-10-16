@@ -187,7 +187,7 @@ def parse_secrets_autonomous(raw: object, skill_file: Path) -> bool:
     return False
 
 
-def parse_skill_file(skill_file: Path, category: SkillCategory, relative_path: Path | None = None) -> Skill | None:
+def parse_skill_file(skill_file: Path, category: SkillCategory, relative_path: Path | None = None, *, source: str | None = None) -> Skill | None:
     """Parse a SKILL.md file and extract metadata.
 
     Args:
@@ -203,7 +203,7 @@ def parse_skill_file(skill_file: Path, category: SkillCategory, relative_path: P
         return None
 
     try:
-        content = skill_file.read_text(encoding="utf-8")
+        content = source if source is not None else skill_file.read_text(encoding="utf-8")
 
         # Keep parser diagnostics richer than the pure helper's host-path-free
         # error string; tests and authoring UX depend on the line-specific hint.

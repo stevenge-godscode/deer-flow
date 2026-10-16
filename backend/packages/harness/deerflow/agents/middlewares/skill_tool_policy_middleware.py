@@ -59,6 +59,7 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
         slash_source_owner_token: str,
         authorization_provider=None,
         authorization_principal=None,
+        skill_body_sha256: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
         if not isinstance(slash_source_owner_token, str) or not slash_source_owner_token:
@@ -69,7 +70,11 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
         self._slash_source_owner_token = slash_source_owner_token
         self._authorization_provider = authorization_provider
         self._authorization_principal = authorization_principal
+        self._skill_body_sha256 = dict(skill_body_sha256) if skill_body_sha256 is not None else None
         self._decision_owner_token = secrets.token_urlsafe(24)
+
+    def release_policy_parameters(self) -> dict[str, object]:
+        return {"available_skills": sorted(self._available_skills) if self._available_skills is not None else None, "skill_body_sha256": self._skill_body_sha256}
 
     def _storage(self) -> SkillStorage:
         if self._user_id is not None:
@@ -126,15 +131,30 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
             skill = registry.get(posixpath.normpath(path))
             if skill is None:
                 logger.warning("Active skill path could not be resolved for allowed-tools policy: %s", path)
+                if self._skill_body_sha256 is not None:
+                    return [], True
                 continue
             if not skill.enabled:
                 logger.warning("Active skill is disabled for allowed-tools policy: %s", path)
+                if self._skill_body_sha256 is not None:
+                    return [], True
                 continue
             if self._available_skills is not None and skill.name not in self._available_skills:
                 logger.warning("Active skill is outside the agent allowlist for allowed-tools policy: %s", path)
+                if self._skill_body_sha256 is not None:
+                    return [], True
                 continue
             if not is_skill_authorized(skill.name, self._authorization_provider, self._authorization_principal):
+                if self._skill_body_sha256 is not None:
+                    return [], True
                 continue
+            if self._skill_body_sha256 is not None:
+                from deerflow.skills.definition import verified_skill
+
+                try:
+                    skill = verified_skill(skill, self._skill_body_sha256)
+                except (OSError, ValueError):
+                    return [], True
             if skill.name in seen:
                 continue
             seen.add(skill.name)
@@ -204,7 +224,7 @@ class SkillToolPolicyMiddleware(AgentMiddleware[AgentState]):
         _, paths = resolved_policy
         context = self._runtime_context(request)
         # A cached active-skill decision cannot survive a live grant revocation.
-        if getattr(self._authorization_provider, "requires_skill_authorization", False) is True:
+        if self._skill_body_sha256 is not None or getattr(self._authorization_provider, "requires_skill_authorization", False) is True:
             return self._allowed_names_for_paths(paths)
         decision = self._read_policy_decision(context, resolved_policy)
         if decision is not _MISSING_POLICY_DECISION:

@@ -102,6 +102,7 @@ class SkillActivationMiddleware(AgentMiddleware):
         slash_source_owner_token: str,
         authorization_provider=None,
         authorization_principal=None,
+        skill_body_sha256: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
         if not isinstance(slash_source_owner_token, str) or not slash_source_owner_token:
@@ -112,12 +113,14 @@ class SkillActivationMiddleware(AgentMiddleware):
         self._slash_source_owner_token = slash_source_owner_token
         self._authorization_provider = authorization_provider
         self._authorization_principal = authorization_principal
+        self._skill_body_sha256 = dict(skill_body_sha256) if skill_body_sha256 is not None else None
 
     def release_policy_parameters(self) -> dict[str, object]:
         return {
             # None means "any enabled, runtime-allowed skill may be activated";
             # a concrete list narrows that to a fixed set.
             "available_skills": sorted(self._available_skills) if self._available_skills is not None else None,
+            "skill_body_sha256": self._skill_body_sha256,
         }
 
     def _storage(self) -> SkillStorage:
@@ -147,7 +150,7 @@ class SkillActivationMiddleware(AgentMiddleware):
                 raise ValueError("Resolved skill file must stay within the configured skills root.") from exc
         if not resolved_file.is_file():
             raise FileNotFoundError(resolved_file)
-        return resolved_file.read_text(encoding="utf-8")
+        return resolved_file.read_bytes().decode("utf-8")
 
     def _resolve_activation(self, text: str) -> _ActivationResolution | None:
         reference = parse_slash_skill_reference(text)
@@ -178,23 +181,33 @@ class SkillActivationMiddleware(AgentMiddleware):
 
         try:
             skill_content = self._read_skill_content(resolved.skill.skill_file, storage.get_skills_root_path(), storage=storage)
+            if self._skill_body_sha256 is not None and self._skill_body_sha256.get(resolved.skill.name) != hashlib.sha256(skill_content.encode("utf-8")).hexdigest():
+                raise ValueError("Published skill body identity mismatch")
         except (OSError, ValueError):
             logger.exception("Failed to read slash-activated skill %s", resolved.skill.name)
             return _ActivationResolution(failure_message=f"Skill `/{reference.name}` could not be loaded safely. Please check the skill installation.")
 
+        active_skill = resolved.skill
+        if self._skill_body_sha256 is not None:
+            from deerflow.skills.definition import verified_skill
+
+            try:
+                active_skill = verified_skill(active_skill, self._skill_body_sha256)
+            except (OSError, ValueError):
+                return _ActivationResolution(failure_message=f"Skill `/{reference.name}` could not be loaded safely. Please check the skill installation.")
         content_hash = hashlib.sha256(skill_content.encode("utf-8")).hexdigest()
         # CUSTOM skills are editable; PUBLIC and LEGACY are read-only
-        editable = resolved.skill.category == SkillCategory.CUSTOM
+        editable = active_skill.category == SkillCategory.CUSTOM
         return _ActivationResolution(
             activation=_Activation(
-                skill_name=resolved.skill.name,
-                category=str(resolved.skill.category),
+                skill_name=active_skill.name,
+                category=str(active_skill.category),
                 container_file_path=resolved.container_file_path,
                 skill_content=skill_content,
                 content_hash=content_hash,
                 remaining_text=resolved.remaining_text,
                 editable=editable,
-                required_secrets=tuple(resolved.skill.required_secrets or ()),
+                required_secrets=tuple(active_skill.required_secrets or ()),
             )
         )
 
@@ -512,7 +525,16 @@ Follow this skill before choosing a general workflow. Load supporting resources 
         if not isinstance(path, str) or not path:
             return None
         skill = registry.get(posixpath.normpath(path))
-        if skill is None or not skill.enabled or not skill.required_secrets:
+        if skill is None:
+            return None
+        if self._skill_body_sha256 is not None:
+            from deerflow.skills.definition import verified_skill
+
+            try:
+                skill = verified_skill(skill, self._skill_body_sha256)
+            except (OSError, ValueError):
+                return None
+        if not skill.enabled or not skill.required_secrets:
             return None
         if require_autonomous and not skill.secrets_autonomous:
             return None
