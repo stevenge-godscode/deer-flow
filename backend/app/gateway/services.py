@@ -43,6 +43,8 @@ from deerflow.agents.middlewares.message_utils import _SUMMARY_MESSAGE_NAME
 from deerflow.agents.middlewares.tool_receipt import TOOL_RECEIPT_KEY, TOOL_RECEIPT_LEDGER_KEY
 from deerflow.agents.middlewares.tool_transform_meta import TOOL_TRANSFORMS_KEY
 from deerflow.agents.middlewares.view_image_middleware import _IMAGE_CONTEXT_MESSAGE_MARKER_KEY
+from deerflow.authz.provider import AuthorizationAdmissionDenied
+from deerflow.authz.run_scope import bind_run_authorization_attributes
 from deerflow.config.app_config import get_app_config
 from deerflow.config.database_config import resolve_checkpoint_graph_cache_max
 from deerflow.projects.context import PROJECT_CONTEXT_MESSAGE_MARKER, resolve_project_context
@@ -529,7 +531,7 @@ _CONTEXT_INTERNAL_CALLER_KEYS: frozenset[str] = frozenset({"non_interactive"})
 # are either produced by Gateway auth state, admitted from a separately
 # authenticated internal request channel, or reserved for LangGraph Server.
 #   ``is_internal``             — derived from ``request.state.auth_source``
-#   ``authz_attributes``        — Phase 1A has no Gateway-side producer; cleared.
+#   ``authz_attributes``        — cleared, then produced after project admission.
 #   ``channel_user_id``         — accepted only from trusted internal context.
 #   ``langgraph_auth_user*``    — populated only by LangGraph Server auth.
 #   ``sandbox_*_id``           — created only inside the run/subagent lifecycle.
@@ -1639,6 +1641,8 @@ async def start_run(
         # nothing re-resolves membership mid-run, and admission never writes
         # membership (§10.7). Resolution failure degrades to unassigned with a
         # warning inside the resolver; it never fails the run.
+        for section in ("context", "configurable"):
+            config.setdefault(section, {}).pop(PROJECT_CONTEXT_KEY, None)
         project_context = await resolve_project_context(
             run_ctx.thread_store,
             getattr(request.app.state, "project_repo", None),
@@ -1647,6 +1651,12 @@ async def start_run(
         )
         if project_context is not None:
             config["context"][PROJECT_CONTEXT_KEY] = project_context
+        try:
+            await bind_run_authorization_attributes(config, get_app_config().authorization, project_context=project_context)
+        except AuthorizationAdmissionDenied as exc:
+            # Reject before any Agent/model is constructed, including middleware
+            # that could read memory without a tool call.
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         async def run_after_metadata(record: RunRecord) -> None:
             metadata_task = asyncio.create_task(

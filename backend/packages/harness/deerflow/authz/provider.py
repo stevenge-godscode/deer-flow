@@ -26,6 +26,10 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 
+class AuthorizationAdmissionDenied(PermissionError):
+    """A requested execution mode has no supported capability admission."""
+
+
 @dataclass
 class Principal:
     """The actor resolved from trusted runtime identity context.
@@ -44,6 +48,8 @@ class Principal:
     channel_user_id: str | None = None
     is_internal: bool = False
     attributes: dict[str, Any] = field(default_factory=dict)
+    agent_name: str | None = None
+    is_subagent: bool = False
 
 
 @dataclass

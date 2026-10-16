@@ -155,3 +155,28 @@ async def test_allowed_subagents_round_trip_and_explicit_null_clears(_agent_env)
 
     unrestricted = await update_agent("delegator", AgentUpdateRequest(allowed_subagents=None))
     assert unrestricted.allowed_subagents is None
+
+
+async def test_memory_policy_round_trip_and_unrelated_update_preserves_false(_agent_env) -> None:
+    created = await create_agent_endpoint(AgentCreateRequest(name="no-memory", memory_enabled=False))
+    assert created.memory_enabled is False
+    assert (await get_agent("no-memory")).memory_enabled is False
+    updated = await update_agent("no-memory", AgentUpdateRequest(description="changed"))
+    assert updated.memory_enabled is False
+    enabled = await update_agent("no-memory", AgentUpdateRequest(memory_enabled=True))
+    assert enabled.memory_enabled is True
+    assert (await get_agent("no-memory")).memory_enabled is True
+
+
+async def test_omitted_memory_policy_keeps_existing_default(_agent_env) -> None:
+    created = await create_agent_endpoint(AgentCreateRequest(name="default-memory"))
+    assert created.memory_enabled is True
+
+
+async def test_null_memory_policy_is_rejected() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        AgentCreateRequest(name="bad-memory", memory_enabled=None)
+    with pytest.raises(ValidationError):
+        AgentUpdateRequest(memory_enabled=None)

@@ -7,7 +7,8 @@ from collections.abc import Sequence
 
 from langchain_core.tools import BaseTool
 
-from deerflow.authz.provider import AuthorizationProvider, Principal
+from deerflow.authz.provider import AuthorizationProvider, AuthzRequest, Principal
+from deerflow.tools.mcp_metadata import get_mcp_source, is_mcp_tool
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,9 @@ def filter_tools_by_authorization(
         allowed = provider.filter_resources(principal, "tool", candidates)
         if not isinstance(allowed, list) or any(not isinstance(name, str) for name in allowed):
             raise TypeError("AuthorizationProvider.filter_resources must return list[str]")
+        if getattr(provider, "requires_tool_origin", False) is True:
+            names = set(allowed)
+            original_tools = [tool for tool in original_tools if tool.name in names and provider.authorize(AuthzRequest(principal, "tool", "call", tool.name, {"mcp_source": get_mcp_source(tool), "is_mcp": is_mcp_tool(tool)})).allow]
     except Exception:
         logger.exception("Authorization provider failed while filtering tools")
         return [] if fail_closed else original_tools

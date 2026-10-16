@@ -1230,6 +1230,8 @@ class SubagentExecutor:
             "channel_user_id": self.channel_user_id,
             "is_internal": self.is_internal,
             "authz_attributes": self.authz_attributes,
+            "is_subagent": True,
+            "agent_name": self.config.name,
         }
         authorization_candidates = [*self._base_tools]
         if skill_setup.describe_skill_tool is not None:

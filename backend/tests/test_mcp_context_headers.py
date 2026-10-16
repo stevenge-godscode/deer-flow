@@ -1017,3 +1017,11 @@ def test_gateway_rejects_a_masked_value_for_an_unknown_block_extra():
     )
     with pytest.raises(HTTPException):
         _merge_preserving_secrets(incoming, existing)
+
+
+@pytest.fixture(autouse=True)
+def _explicit_legacy_background_authorization(monkeypatch):
+    from types import SimpleNamespace
+
+    # Header transport tests explicitly exercise the unscoped legacy path.
+    monkeypatch.setattr("deerflow.authz.run_scope._background_authorization_config", lambda: SimpleNamespace(enabled=False))

@@ -466,3 +466,11 @@ async def test_remote_task_call_respects_configured_timeout(transport: str) -> N
         {"task_id": "remote-1"},
         read_timeout_seconds=timedelta(seconds=0.01),
     )
+
+
+@pytest.fixture(autouse=True)
+def _explicit_legacy_background_authorization(monkeypatch):
+    # These legacy transport/persistence tests exercise authorization-disabled
+    # mode explicitly. Scoped denial is tested through the real entry points in
+    # test_scoped_authorization.py, without this fixture.
+    monkeypatch.setattr("deerflow.authz.run_scope._background_authorization_config", lambda: SimpleNamespace(enabled=False))

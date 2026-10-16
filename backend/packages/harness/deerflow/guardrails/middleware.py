@@ -16,6 +16,7 @@ from deerflow.authz.outcome import AuthorizationOutcome, put_authorization_outco
 from deerflow.authz.principal import normalize_authz_attributes
 from deerflow.guardrails.provider import GuardrailDecision, GuardrailProvider, GuardrailReason, GuardrailRequest
 from deerflow.runtime.events.catalog import MIDDLEWARE_GUARDRAIL_TAG
+from deerflow.tools.mcp_metadata import get_mcp_source, is_mcp_tool
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class GuardrailMiddleware(AgentMiddleware[AgentState]):
             tool_name=str(request.tool_call.get("name", "")),
             tool_input=request.tool_call.get("args", {}),
             agent_id=self.passport,
+            agent_name=context.get("agent_name"),
             thread_id=context.get("thread_id"),
             is_subagent=bool(context.get("is_subagent")),
             timestamp=datetime.now(UTC).isoformat(),
@@ -90,6 +92,8 @@ class GuardrailMiddleware(AgentMiddleware[AgentState]):
             channel_user_id=context.get("channel_user_id"),
             is_internal=context.get("is_internal") is True,
             authz_attributes=normalize_authz_attributes(context.get("authz_attributes")),
+            mcp_source=get_mcp_source(getattr(request, "tool", None)),
+            is_mcp=is_mcp_tool(getattr(request, "tool", None)),
         )
 
     def _build_denied_message(self, request: ToolCallRequest, decision: GuardrailDecision) -> ToolMessage:
