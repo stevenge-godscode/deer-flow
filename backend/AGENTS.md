@@ -397,7 +397,3 @@ See `docs/` directory for detailed documentation:
 - [plan_mode_usage.md](docs/plan_mode_usage.md) - Plan mode with TodoList
 
 Scope: `packages/harness/deerflow/authz/AGENTS.md`.
-
-Browser TUI hosting lives in browser_tui/, an app-layer adapter over native Textual UI. It uses authenticated Gateway APIs only; do not connect default-user embedded clients or databases from this surface.
-
-Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.
