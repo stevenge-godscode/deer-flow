@@ -20,7 +20,6 @@ class AgentDefinitionUnavailable(LookupError):
     """The selected native Agent belongs to another owner."""
 
 
-
 def validate_agent_definition_reference(value: object) -> dict[str, str]:
     if not isinstance(value, dict) or set(value) != {"schema", "name", "digest"}:
         raise ValueError("Invalid published Agent definition reference")
