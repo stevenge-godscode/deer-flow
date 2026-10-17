@@ -1622,6 +1622,15 @@ export const enUS: Translations = {
     },
   },
   login: {
+    workspaceTitle: "Agent workspace",
+    unifiedSignIn: "Sign in",
+    passwordSignIn: "Email and password",
+    otherMethods: "Other sign-in methods",
+
+    linkExisting: "Link an existing account",
+    linkContinue: "Verify and link",
+    linkCancel: "Back to sign in",
+    linkDescription: "Verify your existing account to continue linking.",
     signInTitle: "Sign in to your account",
     createAccountTitle: "Create a new account",
     email: "Email",
@@ -1629,8 +1638,7 @@ export const enUS: Translations = {
     password: "Password",
     passwordPlaceholder: "•••••••",
     rememberMe: "Keep me signed in",
-    rememberMeDescription:
-      "Keep this browser session when possible. DeerFlow stores only your email, never your password.",
+    rememberMeDescription: "Keep this browser signed in.",
     pleaseWait: "Please wait...",
     signIn: "Sign In",
     createAccount: "Create Account",
@@ -1639,8 +1647,7 @@ export const enUS: Translations = {
     adminSetupRequiredDescription:
       "DeerFlow needs an administrator account before new regular accounts can be created.",
     orContinueWith: "Or continue with",
-    ssoHint:
-      "If your account uses single sign-on, sign in with the option below instead.",
+    ssoHint: "Try the unified sign-in option.",
     continueWith: (provider: string) => `Continue with ${provider}`,
     noAccountSignUp: "Don't have an account? Sign up",
     haveAccountSignIn: "Already have an account? Sign in",
@@ -1652,12 +1659,11 @@ export const enUS: Translations = {
     retry: "Try again",
     authFailed: "Authentication failed.",
     errors: {
-      sso_failed: "SSO login failed. Please try again or use email login.",
-      sso_cancelled: "SSO login was cancelled.",
-      sso_account_exists:
-        "An account with this email already exists. Please sign in with your password or contact your administrator.",
+      sso_failed: "Sign-in failed. Please try again.",
+      sso_cancelled: "Sign-in cancelled.",
+      sso_account_exists: "Sign in or link your existing account.",
       sso_not_allowed:
-        "SSO login is not allowed for your account. Contact your administrator.",
+        "This account cannot sign in. Contact your administrator.",
     },
   },
 };

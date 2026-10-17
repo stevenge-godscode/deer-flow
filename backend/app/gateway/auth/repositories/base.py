@@ -105,3 +105,11 @@ class UserRepository(ABC):
             User if found, None otherwise
         """
         raise NotImplementedError
+
+    async def link_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+        """CAS a password-proven ordinary local user to a verified OIDC identity."""
+        raise NotImplementedError("Atomic identity linking is unavailable")
+
+    async def unlink_oauth_identity(self, user_id: str, provider: str, subject: str, issuer: str, expected_token_version: int) -> User:
+        """CAS-unlink only an ordinary user retaining a password login."""
+        raise NotImplementedError("Atomic identity unlinking is unavailable")

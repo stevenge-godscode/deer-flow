@@ -1530,6 +1530,15 @@ export const zhCN: Translations = {
     },
   },
   login: {
+    workspaceTitle: "智能体工作台",
+    unifiedSignIn: "登录",
+    passwordSignIn: "邮箱密码登录",
+    otherMethods: "其他登录方式",
+
+    linkExisting: "关联已有账号",
+    linkContinue: "验证并关联",
+    linkCancel: "返回登录",
+    linkDescription: "验证已有账号后继续关联。",
     signInTitle: "登录你的账号",
     createAccountTitle: "创建新账号",
     email: "邮箱",
@@ -1537,8 +1546,7 @@ export const zhCN: Translations = {
     password: "密码",
     passwordPlaceholder: "•••••••",
     rememberMe: "保持登录",
-    rememberMeDescription:
-      "下次打开 DeerFlow 时尽量保持当前会话，仅保存邮箱，不保存密码。",
+    rememberMeDescription: "在此浏览器保持登录。",
     pleaseWait: "请稍候...",
     signIn: "登录",
     createAccount: "创建账号",
@@ -1547,7 +1555,7 @@ export const zhCN: Translations = {
     adminSetupRequiredDescription:
       "DeerFlow 需要先创建管理员账号，然后才能创建新的普通账号。",
     orContinueWith: "或使用以下方式登录",
-    ssoHint: "如果你的账号使用单点登录（SSO），请改用下方的选项登录。",
+    ssoHint: "请尝试统一账号登录。",
     continueWith: (provider: string) => `使用 ${provider} 登录`,
     noAccountSignUp: "还没有账号？立即注册",
     haveAccountSignIn: "已有账号？立即登录",
@@ -1559,11 +1567,10 @@ export const zhCN: Translations = {
     retry: "重试",
     authFailed: "身份验证失败。",
     errors: {
-      sso_failed: "SSO 登录失败，请重试或使用邮箱登录。",
-      sso_cancelled: "SSO 登录已取消。",
-      sso_account_exists:
-        "该邮箱对应的账号已存在。请使用密码登录或联系管理员。",
-      sso_not_allowed: "你的账号不允许使用 SSO 登录。请联系管理员。",
+      sso_failed: "登录失败，请重试。",
+      sso_cancelled: "已取消登录。",
+      sso_account_exists: "请使用已有账号登录或关联。",
+      sso_not_allowed: "当前账号无法登录，请联系管理员。",
     },
   },
 };

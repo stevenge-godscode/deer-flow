@@ -28,7 +28,7 @@ ACTIVE_CONTENT_MIME_TYPES = {
 }
 
 
-def _is_active_content_mime_type(mime_type: str | None) -> bool:
+def _is_active_content_mime_type(mime_type: str | None, filename: str | Path | None = None) -> bool:
     """Return whether a browser can run script when rendering *mime_type* inline.
 
     Beyond HTML, this covers every WHATWG XML MIME type (``text/xml``,
@@ -37,6 +37,10 @@ def _is_active_content_mime_type(mime_type: str | None) -> bool:
     ``<script>``, so ``report.xml`` or ``feed.rss`` is as dangerous as
     ``page.html`` when opened in the application origin.
     """
+    # Slim runtimes may lack the OS MIME registry (notably XHTML). Preserve
+    # attachment behavior independently of that optional system database.
+    if filename is not None and Path(filename).suffix.lower() in {".html", ".htm", ".xhtml", ".xht", ".svg", ".svgz", ".xml", ".rss", ".atom", ".xsl", ".xslt"}:
+        return True
     if mime_type is None:
         return False
     mime_type = mime_type.lower()

@@ -14,7 +14,10 @@ class OIDCProviderConfig(BaseModel):
     issuer: str = Field(description="OIDC issuer URL (e.g. https://keycloak.example.com/realms/deerflow)")
     client_id: str = Field(description="OAuth2 client ID assigned by the provider")
     client_secret: str | None = Field(default=None, description="OAuth2 client secret ($ENV_VAR references supported)")
-    redirect_uri: str | None = Field(default=None, description="Callback URL the provider will redirect to after auth")
+    redirect_uri: str | None = Field(
+        default=None,
+        description="Callback URL the provider will redirect to after auth",
+    )
     scopes: list[str] = Field(
         default_factory=lambda: ["openid", "email", "profile"],
         description="OIDC scopes to request (must include openid)",
@@ -32,6 +35,14 @@ class OIDCProviderConfig(BaseModel):
     require_verified_email: bool = Field(
         default=True,
         description="Reject authentication if the provider does not report the email as verified",
+    )
+    allow_verified_phone: bool = Field(
+        default=False,
+        description="Allow ordinary email-less onboarding from a verified ID-token phone claim; never grants admin rights",
+    )
+    trusted_non_email_providers: list[str] = Field(
+        default_factory=list,
+        description="Explicit native login-source names extracted from a verified ID token; ordinary accounts only",
     )
     allowed_email_domains: list[str] = Field(
         default_factory=list,
@@ -105,4 +116,7 @@ class AuthAppConfig(BaseModel):
     """Authentication configuration section for the DeerFlow app config."""
 
     oidc: OIDCAuthConfig = Field(default_factory=OIDCAuthConfig, description="OIDC SSO authentication settings")
-    local: LocalAuthConfig = Field(default_factory=LocalAuthConfig, description="Built-in email/password authentication settings")
+    local: LocalAuthConfig = Field(
+        default_factory=LocalAuthConfig,
+        description="Built-in email/password authentication settings",
+    )

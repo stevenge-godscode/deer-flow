@@ -20,7 +20,7 @@
 # ============================================================================
 # Bump this number when the config schema changes.
 # Run `make config-upgrade` to merge new fields into your local config.yaml.
-config_version: 45
+config_version: 46
 
 # Optional per-model request pacing (inside a models[] entry):
 # request_admission:
@@ -2955,6 +2955,7 @@ authorization:
 #         # User provisioning settings (safe defaults shown below):
 #         auto_create_users: true          # Auto-create DeerFlow account on first SSO login
 #         require_verified_email: true     # Reject SSO logins without verified email
+#         allow_verified_phone: false      # Explicitly accept signed verified-phone proof
 #         # allowed_email_domains:          # Restrict to specific email domains
 #         #   - example.com
 #         admin_emails: []                 # Auto-grant admin role to these emails

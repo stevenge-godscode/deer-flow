@@ -13,16 +13,27 @@ jobs:
     if: github.repository == 'stevenge-godscode/deer-flow'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      HTTP_PROXY: ${{ vars.GENESIS_CI_HTTP_PROXY }}
+      HTTPS_PROXY: ${{ vars.GENESIS_CI_HTTPS_PROXY }}
+      NO_PROXY: ${{ vars.GENESIS_CI_NO_PROXY }}
     steps:
+      - name: Require approved CI outbound proxy before source/tool downloads
+        shell: bash
+        run: |
+          test -n "$HTTP_PROXY"
+          test -n "$HTTPS_PROXY"
+          git config --global http.proxy "$HTTPS_PROXY"
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: corepack enable && corepack prepare pnpm@10.26.2 --activate
-      - run: pnpm install --frozen-lockfile
+      - run: npm install --global pnpm@10.26.2 --proxy "$HTTP_PROXY" --https-proxy "$HTTPS_PROXY"
+      - run: pnpm install --frozen-lockfile --proxy "$HTTP_PROXY" --https-proxy "$HTTPS_PROXY"
         working-directory: frontend
+      - run: python3 scripts/check_branding.py
       - run: pnpm exec next typegen && pnpm check
         working-directory: frontend
       - run: pnpm exec rstest run --pool.maxWorkers 2 --pool.minWorkers 1

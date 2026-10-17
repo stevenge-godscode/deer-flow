@@ -18,7 +18,7 @@ from alembic import command
 
 import deerflow.persistence.models  # noqa: F401  -- registers ORM models
 from deerflow.persistence.base import Base
-from deerflow.persistence.bootstrap import _get_alembic_config, _get_head_revision
+from deerflow.persistence.bootstrap import _get_alembic_config, _get_head_revision, _get_known_revisions
 from deerflow.persistence.engine import close_engine, get_session_factory, init_engine
 from deerflow.persistence.run import RunRepository
 
@@ -66,8 +66,8 @@ def _table_and_column_state(db_path) -> tuple[bool, bool, set[str], str | None]:
     return "run_change_clock" in tables, "change_seq" in run_columns, run_indexes, version_row[0] if version_row else None
 
 
-async def test_0025_is_the_chain_head():
-    assert _get_head_revision() == REVISION
+async def test_0025_remains_in_the_current_chain():
+    assert REVISION in _get_known_revisions()
 
 
 async def test_0025_repairs_schema_skipped_by_the_0023_insertion(tmp_path):

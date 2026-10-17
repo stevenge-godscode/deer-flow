@@ -11,6 +11,7 @@ import {
 } from "@/core/artifacts/viewer";
 import { getServerSideUser } from "@/core/auth/server";
 import { assertNever, buildLoginUrl } from "@/core/auth/types";
+import { loadBrand } from "@/core/branding/server";
 import { getI18n } from "@/core/i18n/server";
 
 const POST_LOGIN_FALLBACK = "/workspace";
@@ -23,7 +24,9 @@ export async function generateMetadata({
   searchParams,
 }: ArtifactViewerPageProps): Promise<Metadata> {
   const target = parseArtifactViewerQuery(await searchParams);
-  return { title: artifactViewerTitle(target?.filepath) };
+  return {
+    title: artifactViewerTitle(target?.filepath, (await loadBrand()).name),
+  };
 }
 
 /**
