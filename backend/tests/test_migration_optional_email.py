@@ -16,7 +16,8 @@ REVISION = "0027_optional_oidc_email"
 def test_migration_head_includes_current_dev_revision():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     try:
-        assert ScriptDirectory.from_config(_get_alembic_config(engine)).get_current_head() == REVISION
+        # The deployed DEV database is at this revision; older images cannot boot.
+    assert ScriptDirectory.from_config(_get_alembic_config(engine)).get_current_head() == REVISION
     finally:
         asyncio.run(engine.dispose())
 

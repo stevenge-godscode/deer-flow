@@ -28,7 +28,7 @@ const config = {
     defaultLocale: "en",
   },
   turbopack: {
-    // Shared branding assets live at the repository root (branding/site.json).
+    // Include repository-level branding/site.json in the Turbopack filesystem root.
     root: fileURLToPath(new URL("..", import.meta.url)),
   },
   devIndicators: false,
