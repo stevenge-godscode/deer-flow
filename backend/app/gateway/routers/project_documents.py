@@ -111,7 +111,7 @@ def _not_found() -> HTTPException:
 _INLINE_VIEWABLE_MIME_PREFIXES = ("image/", "audio/", "video/")
 
 
-def _is_inline_viewable_mime_type(media_type: str) -> bool:
+def _is_inline_viewable_mime_type(media_type: str, filename: str | None = None) -> bool:
     """Whether *media_type* may be served ``inline`` when ``download=false``.
 
     Passive text and browser-viewable binaries (PDF, image, audio, video)
@@ -119,7 +119,7 @@ def _is_inline_viewable_mime_type(media_type: str) -> bool:
     ``+xml`` subtypes such as SVG — never is (same rule as the artifacts
     router), regardless of the ``download`` flag.
     """
-    if _is_active_content_mime_type(media_type):
+    if _is_active_content_mime_type(media_type, filename):
         return False
     return media_type.startswith("text/") or media_type == "application/pdf" or media_type.startswith(_INLINE_VIEWABLE_MIME_PREFIXES)
 
@@ -469,7 +469,7 @@ async def get_project_document_content(
     # type, including ``+xml`` subtypes such as SVG) is ALWAYS an attachment
     # regardless of ``download``, exactly like the artifacts router, and
     # ``download=true`` attaches everything.
-    inline = not download and media_type is not None and _is_inline_viewable_mime_type(media_type)
+    inline = not download and media_type is not None and _is_inline_viewable_mime_type(media_type, filename)
     return FileResponse(
         serving_path,
         media_type=media_type or "application/octet-stream",

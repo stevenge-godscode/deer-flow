@@ -35,6 +35,25 @@ rs.mock("@/core/models/hooks", () => ({
   }),
 }));
 
+// Permission rendering does not exercise the LangGraph transport or mutation.
+// Keep this isolated DOM fixture from requesting history for its synthetic ID.
+rs.mock("@/core/threads/hooks", () => ({
+  useDeleteThread: () => ({ mutateAsync: rs.fn(), isPending: false }),
+  useThreadStream: () => ({
+    thread: {
+      messages: [],
+      values: { messages: [], artifacts: [], todos: [], title: "" },
+      isLoading: false,
+      interrupts: [],
+    },
+    sendMessage: rs.fn(),
+    isUploading: false,
+    isHistoryLoading: false,
+    hasMoreHistory: false,
+    loadMoreHistory: rs.fn(),
+  }),
+}));
+
 function makeUser(permissions: string[] | null | undefined): User {
   return {
     id: "user-1",

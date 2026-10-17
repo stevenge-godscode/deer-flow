@@ -25,9 +25,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useBrand } from "@/core/branding/context";
 import { useI18n } from "@/core/i18n/hooks";
 
-import { GithubIcon } from "./github-icon";
 import { useSettingsDialog } from "./settings";
 
 function NavMenuButtonContent({
@@ -55,6 +55,7 @@ export function WorkspaceNavMenu() {
   const [mounted, setMounted] = useState(false);
   const { open: isSidebarOpen } = useSidebar();
   const { t } = useI18n();
+  const brand = useBrand();
 
   useEffect(() => {
     setMounted(true);
@@ -90,28 +91,28 @@ export function WorkspaceNavMenu() {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <a
-                    href="https://deerflow.tech/"
+                    href={brand.website}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     <DropdownMenuItem>
                       <GlobeIcon />
-                      {t.workspace.officialWebsite}
+                      {brand.company}官网
                     </DropdownMenuItem>
                   </a>
                   <a
-                    href="https://github.com/bytedance/deer-flow"
+                    href={brand.docs}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     <DropdownMenuItem>
-                      <GithubIcon />
-                      {t.workspace.visitGithub}
+                      <InfoIcon />
+                      使用文档
                     </DropdownMenuItem>
                   </a>
                   <DropdownMenuSeparator />
                   <a
-                    href="https://github.com/bytedance/deer-flow/issues"
+                    href={brand.support}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -120,7 +121,7 @@ export function WorkspaceNavMenu() {
                       {t.workspace.reportIssue}
                     </DropdownMenuItem>
                   </a>
-                  <a href="mailto:support@deerflow.tech">
+                  <a href={brand.support}>
                     <DropdownMenuItem>
                       <MailIcon />
                       {t.workspace.contactUs}

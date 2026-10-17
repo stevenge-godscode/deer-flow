@@ -6,10 +6,12 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 import { RememberSessionOption } from "@/components/auth/remember-session-option";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/core/auth/AuthProvider";
+import { beginIdentityLink } from "@/core/auth/identity-link";
 import { resolveAuthNextPath } from "@/core/auth/next-path";
 import {
   loadRememberLoginPreference,
@@ -34,6 +36,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [isLogin, setIsLogin] = useState(true);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
+  const [linkProvider, setLinkProvider] = useState<string | null>(null);
   const [ssoProviders, setSsoProviders] = useState<
     { id: string; display_name: string; type: string }[]
   >([]);
@@ -76,10 +81,10 @@ export default function LoginPage() {
 
   // Redirect if already authenticated (client-side, post-login)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !linkProvider) {
       router.push(redirectPath);
     }
-  }, [isAuthenticated, redirectPath, router]);
+  }, [isAuthenticated, linkProvider, redirectPath, router]);
 
   useEffect(() => {
     const preference = loadRememberLoginPreference();
@@ -133,7 +138,10 @@ export default function LoginPage() {
         },
       )
       .catch(() => {
-        // Ignore errors; no SSO providers shown
+        // Local login remains available when provider discovery fails.
+      })
+      .finally(() => {
+        if (!cancelled) setProvidersLoaded(true);
       });
 
     return () => {
@@ -154,6 +162,18 @@ export default function LoginPage() {
     }
 
     try {
+      if (linkProvider) {
+        const destination = await beginIdentityLink({
+          provider: linkProvider,
+          email,
+          password,
+          rememberMe,
+          next: redirectPath,
+        });
+        setPassword("");
+        window.location.assign(destination);
+        return;
+      }
       const endpoint = isLogin
         ? "/api/v1/auth/login/local"
         : "/api/v1/auth/register";
@@ -192,19 +212,25 @@ export default function LoginPage() {
 
       // Both login and register set a cookie — redirect to workspace
       router.push(redirectPath);
-    } catch {
-      setError(t.login.networkError);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t.login.networkError);
     } finally {
       setLoading(false);
     }
   };
 
+  const passwordLoginVisible =
+    providersLoaded &&
+    (ssoProviders.length === 0 ||
+      showPasswordLogin ||
+      !!linkProvider ||
+      !isLogin);
   const actualTheme = theme === "system" ? resolvedTheme : theme;
 
   return (
     <div className="bg-background relative flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto">
       <FlickeringGrid
-        className="absolute inset-0 z-0 mask-[url(/images/deer.svg)] mask-size-[100vw] mask-center mask-no-repeat md:mask-size-[72vh]"
+        className="absolute inset-0 z-0 mask-[url(/brand/logo)] mask-size-[100vw] mask-center mask-no-repeat md:mask-size-[72vh]"
         squareSize={4}
         gridGap={4}
         color={actualTheme === "dark" ? "white" : "black"}
@@ -213,10 +239,10 @@ export default function LoginPage() {
       />
       <div className="border-border/20 bg-background/5 w-full max-w-md space-y-6 rounded-3xl border p-8 backdrop-blur-sm">
         <div className="text-center">
-          <h1 className="text-foreground font-serif text-3xl">DeerFlow</h1>
-          <p className="text-muted-foreground mt-2">
-            {isLogin ? t.login.signInTitle : t.login.createAccountTitle}
-          </p>
+          <h1 className="text-foreground font-serif text-3xl">
+            <BrandLogo className="justify-center" />
+          </h1>
+          <p className="text-muted-foreground mt-2">{t.login.workspaceTitle}</p>
         </div>
 
         {showSetupStatusUnavailable && (
@@ -226,9 +252,6 @@ export default function LoginPage() {
             className="border-l-2 border-amber-500 ps-3 text-sm"
           >
             <p className="font-medium">{t.login.serviceUnavailableTitle}</p>
-            <p className="text-muted-foreground mt-1">
-              {t.login.serviceUnavailableDescription}
-            </p>
             <Button
               type="button"
               variant="outline"
@@ -262,88 +285,99 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-2">
-          <div className="flex flex-col space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              {t.login.email}
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t.login.emailPlaceholder}
-              required
-            />
-          </div>
-          <div className="flex flex-col space-y-1">
-            <label htmlFor="password" className="text-sm font-medium">
-              {t.login.password}
-            </label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t.login.passwordPlaceholder}
-              required
-              minLength={isLogin ? 6 : 8}
-            />
-          </div>
+        {error && (
+          <p role="alert" className="text-sm text-red-500">
+            {error}
+          </p>
+        )}
 
+        {providersLoaded &&
+          ssoProviders.length > 0 &&
+          !linkProvider &&
+          isLogin &&
+          !passwordLoginVisible && (
+            <div className="space-y-2">
+              {ssoProviders.map((provider) => (
+                <Button
+                  key={provider.id}
+                  type="button"
+                  className="w-full"
+                  disabled={loading}
+                  onClick={() => {
+                    window.location.href = `/api/v1/auth/oauth/${provider.id}?next=${encodeURIComponent(redirectPath)}&remember_me=${String(rememberMe)}`;
+                  }}
+                >
+                  {ssoProviders.length === 1
+                    ? t.login.unifiedSignIn
+                    : t.login.continueWith(provider.display_name)}
+                </Button>
+              ))}
+            </div>
+          )}
+        {!providersLoaded && <p role="status">{t.login.pleaseWait}</p>}
+        {providersLoaded && !passwordLoginVisible && (
           <RememberSessionOption
             checked={rememberMe}
             onCheckedChange={setRememberMe}
           />
-
-          {error && <p className="text-sm text-red-500">{error}</p>}
-
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading
-              ? t.login.pleaseWait
-              : isLogin
-                ? t.login.signIn
-                : t.login.createAccount}
-          </Button>
-        </form>
-
-        {ssoProviders.length > 0 && (
-          <div className="space-y-2">
-            {isLogin && (
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background text-muted-foreground px-2">
-                    {t.login.orContinueWith}
-                  </span>
-                </div>
-              </div>
-            )}
-            {showSsoHint && (
-              <p className="text-muted-foreground text-center text-sm">
-                {t.login.ssoHint}
-              </p>
-            )}
-            {ssoProviders.map((provider) => (
-              <Button
-                key={provider.id}
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loading}
-                onClick={() => {
-                  window.location.href = `/api/v1/auth/oauth/${provider.id}?next=${encodeURIComponent(redirectPath)}&remember_me=${String(rememberMe)}`;
-                }}
-              >
-                {t.login.continueWith(provider.display_name)}
-              </Button>
-            ))}
-          </div>
         )}
 
-        {regularSignupAllowed && (
+        {linkProvider && (
+          <p className="text-muted-foreground text-sm" role="status">
+            {t.login.linkDescription}
+          </p>
+        )}
+        {passwordLoginVisible && (
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <div className="flex flex-col space-y-1">
+              <label htmlFor="email" className="text-sm font-medium">
+                {t.login.email}
+              </label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t.login.emailPlaceholder}
+                required
+              />
+            </div>
+            <div className="flex flex-col space-y-1">
+              <label htmlFor="password" className="text-sm font-medium">
+                {t.login.password}
+              </label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t.login.passwordPlaceholder}
+                required
+                minLength={isLogin ? 6 : 8}
+              />
+            </div>
+
+            <RememberSessionOption
+              checked={rememberMe}
+              onCheckedChange={setRememberMe}
+            />
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading
+                ? t.login.pleaseWait
+                : linkProvider
+                  ? t.login.linkContinue
+                  : isLogin
+                    ? t.login.signIn
+                    : t.login.createAccount}
+            </Button>
+            {showSsoHint && (
+              <p className="text-muted-foreground text-sm">{t.login.ssoHint}</p>
+            )}
+          </form>
+        )}
+
+        {passwordLoginVisible && regularSignupAllowed && (
           <div className="text-center text-sm">
             <button
               type="button"
@@ -359,11 +393,45 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="text-muted-foreground text-center text-xs">
-          <Link href="/" className="hover:underline">
-            {t.login.backToHome}
-          </Link>
-        </div>
+        {providersLoaded && ssoProviders.length > 0 && (
+          <div className="space-y-1 text-center">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              disabled={loading}
+              onClick={() => {
+                setShowPasswordLogin(!passwordLoginVisible);
+                setLinkProvider(null);
+                setIsLogin(true);
+                setError("");
+                setShowSsoHint(false);
+              }}
+            >
+              {passwordLoginVisible
+                ? t.login.otherMethods
+                : t.login.passwordSignIn}
+            </Button>
+            {!passwordLoginVisible &&
+              ssoProviders.map((provider) => (
+                <Button
+                  key={provider.id}
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  disabled={loading}
+                  onClick={() => {
+                    setLinkProvider(provider.id);
+                    setIsLogin(true);
+                    setError("");
+                    setPassword("");
+                  }}
+                >
+                  {t.login.linkExisting}
+                </Button>
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );

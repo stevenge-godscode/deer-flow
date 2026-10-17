@@ -7,6 +7,7 @@ generation, token exchange, ID token validation, and userinfo retrieval.
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -47,6 +48,8 @@ class OIDCIdentity:
     email_verified: bool
     name: str | None
     claims: dict[str, Any]
+    authenticated_provider: str | None = None
+    verified_phone: str | None = None
 
 
 class OIDCError(Exception):
@@ -425,9 +428,19 @@ class OIDCService:
             email_verified=email_verified,
             name=merged.get("name"),
             claims=merged,
+            verified_phone=_verified_phone_claim(claims),
+            authenticated_provider=claims.get("provider") if isinstance(claims.get("provider"), str) else None,
         )
 
 
 def _constant_time_compare(a: str, b: str) -> bool:
     """Constant-time string comparison."""
     return secrets.compare_digest(a, b)
+
+
+def _verified_phone_claim(claims: dict[str, Any]) -> str | None:
+    """Only the verified ID token can establish this proof; never userinfo merging."""
+    phone = claims.get("phone_number")
+    if claims.get("phone_number_verified") is True and isinstance(phone, str) and re.fullmatch(r"\+[1-9][0-9]{6,14}", phone):
+        return phone
+    return None

@@ -75,3 +75,34 @@ permissions, persisted audit readback or live model answer quality. Those DEV
 integration gates remain required before environment promotion.
 
 Sandbox execution uses the exact singleton target `default` (resource `sandbox`, action `execute`) before container acquisition. It is not the wildcard `*` or a container ID; grant it explicitly in both central policy and the operator scope. Legacy RBAC wildcard/boolean policies still match through the existing RBAC rules. Custom exact-target providers must use this identity.
+
+
+## Native default and projectless subjects
+
+A public Agent name remains unchanged. A true native default Agent (`None`)
+is matched only inside scoped authorization as `deerflow:default-agent`; empty,
+boolean, numeric or reserved public names cannot select it. A server-confirmed
+unassigned thread matches `deerflow:projectless`. These are exact policy subjects,
+not wildcard grants. Central authorization, immutable Agent definitions, current
+policy intersection and concrete MCP configuration/tool origins still apply.
+
+The Gateway resolves one authorization provider for admission. Providers requiring
+run scope require an owned thread row and strict membership resolution. Missing,
+foreign, malformed or unavailable membership never degrades to projectless. Only
+confirmed absent/NULL membership does. Memory mode needs no project repository
+for a genuinely unassigned row. Client proof/projectless markers are cleared from
+both runtime carriers before all binder early returns; the admission marker is
+never persisted.
+
+Temporary runs create owned metadata before strict resolution. Creation requires
+a successful bounded absence check for the thread's journal messages and any
+checkpoint namespace; legacy checkpoint-only history needs explicit ownership migration.
+Concurrent inserts cannot replace an existing row. First-run benign metadata is
+preserved and reserved project/definition/trace fields are excluded. An owned
+legacy row with a NULL incarnation receives a single atomic initialization that
+preserves owner, project, metadata and timestamps; unowned/foreign rows are never
+claimed. The admitted owner/incarnation is rechecked at the worker startup
+barrier. Missing/replaced rows, timeout, error or a cancelled verification task
+fail startup before Agent construction. Durable notifications still require the
+thread to exist. Bootstrap, unadmitted child runs and raw durable tool calls do
+not inherit a lead grant.

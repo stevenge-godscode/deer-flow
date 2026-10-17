@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { BRAND_NAME } from "./utils/brand";
 import { mockLangGraphAPI } from "./utils/mock-api";
 
 declare global {
@@ -81,7 +82,7 @@ test.describe("Notification settings", () => {
       .poll(() => page.evaluate(() => window.__deerflowNotifications ?? []))
       .toEqual([
         {
-          title: "DeerFlow",
+          title: BRAND_NAME,
           body: "This is a test notification.",
         },
       ]);

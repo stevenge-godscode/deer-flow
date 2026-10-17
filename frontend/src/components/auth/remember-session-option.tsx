@@ -25,7 +25,6 @@ export function RememberSessionOption({
         <span className="text-foreground block font-medium">
           {t.login.rememberMe}
         </span>
-        <span>{t.login.rememberMeDescription}</span>
       </span>
     </label>
   );

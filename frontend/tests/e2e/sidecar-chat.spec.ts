@@ -371,29 +371,37 @@ async function openSidecarAndExpectNoAnimatedScroll(page: Page) {
     });
   }
 
-  const { distinctScrollTops, panelTransforms } = await page.evaluate(() => {
-    const targetWindow = window as Window & {
-      __sidecarScrollTops?: number[];
-      __sidecarScrollListener?: (event: Event) => void;
-      __sidecarPanelTransforms?: string[];
-    };
-    if (targetWindow.__sidecarScrollListener) {
-      document.removeEventListener(
-        "scroll",
-        targetWindow.__sidecarScrollListener,
-        true,
-      );
-      targetWindow.__sidecarScrollListener = undefined;
-    }
-    return {
-      distinctScrollTops: Array.from(
-        new Set(targetWindow.__sidecarScrollTops ?? []),
-      ),
-      panelTransforms: targetWindow.__sidecarPanelTransforms ?? [],
-    };
-  });
+  const { distinctScrollTops, panelTransforms, scrollBehavior } =
+    await page.evaluate(() => {
+      const targetWindow = window as Window & {
+        __sidecarScrollTops?: number[];
+        __sidecarScrollListener?: (event: Event) => void;
+        __sidecarPanelTransforms?: string[];
+      };
+      if (targetWindow.__sidecarScrollListener) {
+        document.removeEventListener(
+          "scroll",
+          targetWindow.__sidecarScrollListener,
+          true,
+        );
+        targetWindow.__sidecarScrollListener = undefined;
+      }
+      return {
+        distinctScrollTops: Array.from(
+          new Set(targetWindow.__sidecarScrollTops ?? []),
+        ),
+        panelTransforms: targetWindow.__sidecarPanelTransforms ?? [],
+        scrollBehavior: window.getComputedStyle(
+          document.querySelector('[data-testid="sidecar-message-list"]')!
+            .firstElementChild!,
+        ).scrollBehavior,
+      };
+    });
 
-  expect(distinctScrollTops.length).toBeLessThanOrEqual(1);
+  // Content hydration can make a few immediate position corrections. Smooth
+  // scrolling produces a longer sequence of intermediate positions.
+  expect(distinctScrollTops.length).toBeLessThanOrEqual(3);
+  expect(scrollBehavior).not.toBe("smooth");
   expect(
     panelTransforms.every(
       (transform) =>

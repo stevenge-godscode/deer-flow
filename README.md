@@ -1970,3 +1970,28 @@ The Agent API now exposes the existing `memory_enabled` field on creation,
 updates and reads. Updating unrelated fields preserves its stored value.
 
 Optional native [immutable Agent definitions](backend/docs/IMMUTABLE_AGENT_DEFINITIONS.md) publish versioned config/SOUL and pinned skill bodies through existing data APIs.
+
+### Native MCP file receipts
+
+Explicit MCP file blobs can be received into the authenticated thread outputs with size/hash readback and full raw evidence. The Agent explicitly presents requested files. See [protocol, bounds and storage recovery](backend/docs/MCP_TOOL_FILES.md); shared thread-data mounts and POSIX descriptor-safe storage are required.
+
+Scoped authorization supports explicit operator grants for the native default
+Agent and genuinely projectless conversations. Thread ownership and incarnation
+are checked before execution, and missing ownership metadata does not authorize
+legacy checkpoint history. Existing owned conversations retain their metadata.
+See backend/docs/SCOPED_AUTHORIZATION.md for exact subjects and migration limits.
+
+Browser-hosted native TUI integration: [authenticated browser workbench](backend/browser_tui/README.md).
+
+Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.
+
+## Genesis 登录入口
+
+配置统一登录后，工作台首先显示统一登录入口；邮箱密码与已有账号关联按需展开。错误保持可见，“保持登录”只显示一次。未设置语言时默认中文，已明确选择的语言保持原偏好。账号关联和应用授权沿用既有验证。
+
+
+Genesis phone login can enroll ordinary accounts without an email when the OIDC
+provider configuration explicitly enables `allow_verified_phone` and requests the
+`phone` scope. Only a strictly verified phone claim from the signed ID token is
+accepted; userinfo fields, phone strings, and display names cannot associate
+accounts. Existing `(provider, subject)` identities retain their user and data.

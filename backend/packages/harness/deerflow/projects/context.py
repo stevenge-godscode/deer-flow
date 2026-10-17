@@ -47,7 +47,11 @@ PROJECT_CONTEXT_MESSAGE_ID_PREFIX = "__deerflow_project_context__"
 _PROJECT_CONTEXT_PRODUCER_KIND = "dynamic_context_project"
 
 
-async def resolve_project_context(thread_store: Any, project_repo: Any, thread_id: str, document_repo: Any = None) -> dict[str, Any] | None:
+class ProjectContextResolutionError(RuntimeError):
+    """Membership could not be proven for authorization-sensitive admission."""
+
+
+async def resolve_project_context(thread_store: Any, project_repo: Any, thread_id: str, document_repo: Any = None, *, strict: bool = False, owner_id: str | None = None) -> dict[str, Any] | None:
     """Resolve the pinned project snapshot for *thread_id*, or ``None``.
 
     Reads ``threads_meta.project_id`` through the thread store; when non-NULL,
@@ -65,20 +69,36 @@ async def resolve_project_context(thread_store: Any, project_repo: Any, thread_i
     repository). Failures log a warning and never fail the run — the fault is
     organizational, not authorization (§7.1 step 5, §11). Membership itself is
     never written here (§10.7).
+    Authorization providers requiring run scope use strict=True: only an owned
+    row with explicitly absent/NULL membership is unassigned. Lookup failures,
+    malformed membership, missing/foreign rows and unavailable projects reject
+    admission; owner_id is server resolved, never a request project claim.
     """
     try:
-        if thread_store is None or project_repo is None:
+        if thread_store is None or (not strict and project_repo is None):
             raise LookupError("thread store or project repository unavailable")
-        record = await thread_store.get(thread_id)
+        if strict and (not isinstance(owner_id, str) or not owner_id):
+            raise LookupError("trusted thread owner unavailable")
+        record = await thread_store.get(thread_id, user_id=owner_id) if strict else await thread_store.get(thread_id)
         if record is None:
             raise LookupError("thread row does not exist yet")
+        if strict and record.get("user_id") != owner_id:
+            raise LookupError("thread owner mismatch")
         metadata = record.get("metadata")
+        if strict and not isinstance(metadata, dict):
+            raise LookupError("invalid thread membership metadata")
         project_id = metadata.get(THREAD_PROJECT_METADATA_KEY) if isinstance(metadata, dict) else None
-        if not project_id:
+        if strict and project_id is not None and (not isinstance(project_id, str) or not project_id or ":" in project_id or project_id.strip() != project_id):
+            raise LookupError("invalid project membership identity")
+        if project_id is None or (not strict and not project_id):
             # Unassigned thread: no project context, and no warning — this is
             # the common case, not a failure.
             return None
+        if project_repo is None:
+            raise LookupError("project repository unavailable for assigned membership")
         row = await project_repo.get(project_id)
+        if strict and (row is None or row.get("id") != project_id or row.get("status") not in _RESOLVABLE_PROJECT_STATUSES):
+            raise LookupError("owned project membership unavailable")
         if row is None or row.get("status") not in _RESOLVABLE_PROJECT_STATUSES:
             logger.warning(
                 "Project context resolution for thread %s found no owned active/archived project row; run proceeds unassigned",
@@ -106,7 +126,9 @@ async def resolve_project_context(thread_store: Any, project_repo: Any, thread_i
                 ],
             }
         return snapshot
-    except Exception:
+    except Exception as exc:
+        if strict:
+            raise ProjectContextResolutionError("Trusted project membership unavailable") from exc
         logger.warning(
             "Failed to resolve project context for thread %s; run proceeds unassigned",
             thread_id,

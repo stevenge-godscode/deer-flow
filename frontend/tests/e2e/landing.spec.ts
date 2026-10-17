@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { BRAND_DESCRIPTION, BRAND_NAME } from "./utils/brand";
 import { mockLangGraphAPI } from "./utils/mock-api";
 
 test.describe("Landing page", () => {
@@ -7,14 +8,13 @@ test.describe("Landing page", () => {
     await page.goto("/");
 
     await expect(
-      page.locator("header").first().getByText("DeerFlow", { exact: true }),
+      page.locator("header").first().getByText(BRAND_NAME, { exact: true }),
     ).toBeVisible();
     await expect(page.locator("h1")).toHaveCount(1);
-    await expect(page.locator("h1")).toContainText("DeerFlow");
+    await expect(page.locator("h1")).toContainText(BRAND_DESCRIPTION);
 
-    // "Get Started" call-to-action button in hero
     await expect(
-      page.getByRole("link", { name: /get started/i }),
+      page.getByRole("link", { name: "打开智能体工作台" }),
     ).toBeVisible();
   });
 
@@ -30,12 +30,12 @@ test.describe("Landing page", () => {
     });
   }
 
-  test("Get Started link navigates to workspace", async ({ page }) => {
+  test("workspace link navigates to a new chat", async ({ page }) => {
     mockLangGraphAPI(page);
 
     await page.goto("/");
 
-    const getStarted = page.getByRole("link", { name: /get started/i });
+    const getStarted = page.getByRole("link", { name: "打开智能体工作台" });
     await getStarted.click();
 
     // Should redirect to /workspace/chats/new

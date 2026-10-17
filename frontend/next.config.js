@@ -28,7 +28,8 @@ const config = {
     defaultLocale: "en",
   },
   turbopack: {
-    root: fileURLToPath(new URL(".", import.meta.url)),
+    // The frontend imports branding/site.json from the repository root.
+    root: fileURLToPath(new URL("..", import.meta.url)),
   },
   devIndicators: false,
   // Opt-in for memory-limited DEV containers; production builds are unchanged.

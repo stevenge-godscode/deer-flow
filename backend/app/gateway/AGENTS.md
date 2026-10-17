@@ -169,3 +169,11 @@ Proxied through nginx: `/api/langgraph/*` → Gateway LangGraph-compatible runti
 archive/search behavior, read [Thread lifecycle invariants](../../docs/THREAD_LIFECYCLE.md).
 It owns lineage and settled-checkpoint rules, legacy fallback boundaries, archive
 filtering before pagination, owner isolation, and activity-time preservation.
+
+Scoped run admission uses strict owned membership resolution. Temporary thread
+creation checks for preexisting checkpoint/journal history before assigning an
+owner, preserves benign initial metadata, and pins the native thread incarnation.
+The post-admission metadata barrier must recheck that exact owner/incarnation;
+errors, timeout and child-task cancellation stop startup. Legacy owned NULL
+incarnations are initialized atomically without changing timestamps or content.
+No foreign/unowned row is reassigned on this path. See SCOPED_AUTHORIZATION.md.
