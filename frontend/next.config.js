@@ -28,6 +28,7 @@ const config = {
     defaultLocale: "en",
   },
   turbopack: {
+    // Shared branding assets live at the repository root.
     root: fileURLToPath(new URL("..", import.meta.url)),
   },
   devIndicators: false,

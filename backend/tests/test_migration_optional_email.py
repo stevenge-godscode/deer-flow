@@ -4,12 +4,21 @@ import os
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from alembic.script import ScriptDirectory
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from deerflow.persistence.bootstrap import _get_alembic_config
 
 PREVIOUS = "0026_user_identity_events"
 REVISION = "0027_optional_oidc_email"
+
+
+def test_migration_head_includes_current_dev_revision():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        assert ScriptDirectory.from_config(_get_alembic_config(engine)).get_current_head() == REVISION
+    finally:
+        asyncio.run(engine.dispose())
 
 
 @pytest.mark.parametrize("driver", ["sqlite", "postgres"])
