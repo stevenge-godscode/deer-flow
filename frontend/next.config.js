@@ -28,7 +28,7 @@ const config = {
     defaultLocale: "en",
   },
   turbopack: {
-    root: fileURLToPath(new URL(".", import.meta.url)),
+    root: fileURLToPath(new URL("..", import.meta.url)),
   },
   devIndicators: false,
   // Opt-in for memory-limited DEV containers; production builds are unchanged.
