@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { BRAND_NAME } from "./utils/brand";
 import { MOCK_THREAD_ID, mockLangGraphAPI } from "./utils/mock-api";
 
 test("hides background tasks and sends no task request when the feature is unavailable", async ({
@@ -218,7 +219,7 @@ test("shows, refreshes, and cancels current-chat background tasks", async ({
   await expect(page.getByText("Agent notification failed")).toBeVisible();
   await expect(
     page.getByText(
-      "Chat notification attempt 2 failed; DeerFlow will retry with backoff.",
+      `Chat notification attempt 2 failed; ${BRAND_NAME} will retry with backoff.`,
     ),
   ).toBeVisible();
   await expect(
@@ -252,7 +253,7 @@ test("shows, refreshes, and cancels current-chat background tasks", async ({
   await expect(page.getByText("Remote cancellation timed out")).toBeVisible();
   await expect(
     page.getByText(
-      "Cancellation attempt 4 failed; DeerFlow will keep retrying.",
+      `Cancellation attempt 4 failed; ${BRAND_NAME} will keep retrying.`,
     ),
   ).toBeVisible();
 

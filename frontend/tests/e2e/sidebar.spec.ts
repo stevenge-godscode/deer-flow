@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { BRAND_NAME } from "./utils/brand";
 import { mockLangGraphAPI } from "./utils/mock-api";
 
 test.describe("Sidebar navigation", () => {
@@ -97,7 +98,9 @@ test.describe("Sidebar navigation", () => {
       expect(box!.x + box!.width).toBeLessThanOrEqual(viewportWidth + 1);
     };
 
-    await expectInsideViewport(page.getByText(/欢迎使用 🦌 DeerFlow/).first());
+    await expectInsideViewport(
+      page.getByText(new RegExp(`欢迎使用 ${BRAND_NAME}`)).first(),
+    );
     await expectInsideViewport(page.getByRole("textbox").first());
     await expectInsideViewport(page.locator("[data-slot='suggestions-list']"));
 

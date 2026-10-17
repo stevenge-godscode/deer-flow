@@ -1,5 +1,6 @@
 import { expect, test, type Route } from "@playwright/test";
 
+import { BRAND_DOCS } from "./utils/brand";
 import {
   mockLangGraphAPI,
   MOCK_THREAD_ID,
@@ -758,89 +759,18 @@ test.describe("Thread history", () => {
     await expect(page.getByPlaceholder(/how can i assist you/i)).toBeVisible();
   });
 
-  test("mock thread does not load real backend run history", async ({
-    page,
-  }) => {
-    mockLangGraphAPI(page, {
-      threads: [
-        {
-          thread_id: DEMO_THREAD_ID,
-          title: "Forecasting 2026 Trends and Opportunities",
-          updated_at: "2025-06-01T12:00:00Z",
-          messages: [
-            {
-              type: "human",
-              id: `run-human-${DEMO_THREAD_ID}`,
-              content: [
-                {
-                  type: "text",
-                  text: "This run-message endpoint should not be called.",
-                },
-              ],
-            },
-          ],
-        },
-      ],
+  for (const threadId of [DEMO_THREAD_ID, "not-a-bundled-demo"]) {
+    test(`public showcase ${threadId} redirects to company documentation`, async ({
+      request,
+    }) => {
+      const response = await request.get(`/showcase/${threadId}`, {
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(307);
+      expect(response.headers().location).toBe(BRAND_DOCS);
     });
-    const backendRunHistoryUrls: string[] = [];
-    await page.route(
-      /\/api\/langgraph\/threads\/[^/]+\/runs(?:\?|$)/,
-      (route) => {
-        if (
-          route.request().method() === "GET" &&
-          route
-            .request()
-            .url()
-            .includes(`/api/langgraph/threads/${DEMO_THREAD_ID}/runs`)
-        ) {
-          backendRunHistoryUrls.push(route.request().url());
-          return route.fulfill({
-            status: 500,
-            contentType: "application/json",
-            body: JSON.stringify({
-              error: "mock=true must not load real runs",
-            }),
-          });
-        }
-        return route.fallback();
-      },
-    );
-    await page.route(
-      /\/api\/threads\/[^/]+\/runs\/[^/]+\/messages(?:\?|$)/,
-      (route) => {
-        if (
-          route.request().method() === "GET" &&
-          route.request().url().includes(`/api/threads/${DEMO_THREAD_ID}/runs/`)
-        ) {
-          backendRunHistoryUrls.push(route.request().url());
-          return route.fulfill({
-            status: 500,
-            contentType: "application/json",
-            body: JSON.stringify({
-              error: "mock=true must not load real run messages",
-            }),
-          });
-        }
-        return route.fallback();
-      },
-    );
-
-    await page.goto(`/showcase/${DEMO_THREAD_ID}`);
-
-    await expect(
-      page.getByText("What might be the trends and opportunities in 2026?"),
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page.getByText("I've created a modern, minimalist website"),
-    ).toBeVisible();
-    expect(backendRunHistoryUrls).toEqual([]);
-  });
-
-  test("public showcase rejects unknown thread IDs", async ({ page }) => {
-    const response = await page.goto("/showcase/not-a-bundled-demo");
-
-    expect(response?.status()).toBe(404);
-  });
+  }
 
   test("chats list page shows all threads", async ({ page }) => {
     mockLangGraphAPI(page, { threads: THREADS });
