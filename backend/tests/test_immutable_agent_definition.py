@@ -383,3 +383,20 @@ async def test_published_name_cannot_bypass_definition_using_bootstrap(definitio
         await bind_agent_definition_reference({"context": {"agent_name": "method-v1", "is_bootstrap": True}}, {}, user_id="owner-a", store=store)
     # Existing setup behavior for a fresh name is preserved.
     await bind_agent_definition_reference({"context": {"agent_name": "fresh-name", "is_bootstrap": True}}, {}, user_id="owner-a", store=store)
+
+
+@pytest.mark.asyncio
+async def test_other_owner_native_agent_name_is_denied_at_admission(definition_store):
+    from deerflow.config.definition_snapshot import AgentDefinitionUnavailable, bind_agent_definition_reference
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
+
+    store, _ = definition_store
+    store.create("method-v1", definition(), "private soul", user_id="owner-a")
+    foreign = {"context": {"agent_name": "method-v1"}, "configurable": {}}
+    with pytest.raises(AgentDefinitionUnavailable):
+        await bind_agent_definition_reference(foreign, {}, user_id="owner-b", store=store)
+    assert AGENT_DEFINITION_CONTEXT_KEY not in foreign["context"]
+
+    legacy = {"context": {"agent_name": "config-only-method"}, "configurable": {}}
+    await bind_agent_definition_reference(legacy, {}, user_id="owner-b", store=store)
+    assert AGENT_DEFINITION_CONTEXT_KEY not in legacy["context"]
