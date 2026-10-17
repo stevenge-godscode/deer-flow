@@ -28,7 +28,7 @@ const config = {
     defaultLocale: "en",
   },
   turbopack: {
-    // Include repository-level branding/site.json in the Turbopack filesystem root.
+    // The frontend imports branding/site.json from the repository root.
     root: fileURLToPath(new URL("..", import.meta.url)),
   },
   devIndicators: false,
