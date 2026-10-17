@@ -1,9 +1,13 @@
+import importlib
 import unittest
 from unittest.mock import patch
 
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from browser_tui.server import BrowserServer
+pytest.importorskip("aiohttp_jinja2")
+pytest.importorskip("textual_serve")
+BrowserServer = importlib.import_module("browser_tui.server").BrowserServer
 
 
 class BrowserHostingGuardTests(unittest.IsolatedAsyncioTestCase):
