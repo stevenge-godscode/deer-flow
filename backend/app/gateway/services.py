@@ -47,7 +47,7 @@ from deerflow.authz.provider import AuthorizationAdmissionDenied
 from deerflow.authz.run_scope import bind_run_authorization_attributes
 from deerflow.config.app_config import get_app_config
 from deerflow.config.database_config import resolve_checkpoint_graph_cache_max
-from deerflow.config.definition_snapshot import bind_agent_definition_reference
+from deerflow.config.definition_snapshot import AgentDefinitionUnavailable, bind_agent_definition_reference
 from deerflow.projects.context import PROJECT_CONTEXT_MESSAGE_MARKER, resolve_project_context
 from deerflow.runtime import (
     END_SENTINEL,
@@ -1722,6 +1722,8 @@ async def start_run(
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         try:
             await bind_agent_definition_reference(config, run_metadata, user_id=config["context"].get("user_id"), expected_reference=checkpoint_definition)
+        except AgentDefinitionUnavailable as exc:
+            raise HTTPException(status_code=404, detail="Agent definition not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail="Published Agent definition does not match the checkpoint") from exc
 

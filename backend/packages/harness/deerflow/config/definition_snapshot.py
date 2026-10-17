@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 _REFERENCE_SCHEMA = "deerflow.agent-definition-ref/v1"
 
 
+class AgentDefinitionUnavailable(LookupError):
+    """The selected native Agent belongs to another owner."""
+
+
+
 def validate_agent_definition_reference(value: object) -> dict[str, str]:
     if not isinstance(value, dict) or set(value) != {"schema", "name", "digest"}:
         raise ValueError("Invalid published Agent definition reference")
@@ -48,6 +53,11 @@ async def bind_agent_definition_reference(config: dict, metadata: dict, *, user_
 
         selected_store = store if store is not None else get_agent_store()
         if not selected_store.exists(name, user_id=user_id):
+            # Legacy config-only names remain usable. A name present in the
+            # native store under another owner must not create a run first and
+            # fail only after the worker starts.
+            if any(config.name == name for _, config in selected_store.list_all()):
+                raise AgentDefinitionUnavailable("Agent definition unavailable")
             return None
         snapshot = selected_store.get_definition_snapshot(name, user_id=user_id)
         if not snapshot.config.immutable_definition:
