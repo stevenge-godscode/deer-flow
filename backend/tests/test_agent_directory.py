@@ -344,3 +344,42 @@ async def test_scoped_manager_session_needs_live_role_and_never_system_admin(dir
     with pytest.raises(HTTPException):
         await routes._admin(request)
     assert (await routes.access(request))["can_manage"] is False
+
+
+@pytest.mark.parametrize("invalid", [None, "oidc-disabled", "missing-provider", "auth-bypass", "authorization-disabled", "authorization-open", "missing-policy", "ephemeral-db"])
+def test_directory_bootstrap_uses_real_native_auth_config(directory, monkeypatch, invalid):
+    import deerflow.config.app_config as app_config
+    from deerflow.agent_directory import get_directory
+    from deerflow.config.app_config import AppConfig
+
+    d, identity, private = directory
+    config = AppConfig.model_validate(
+        {
+            "sandbox": {"use": "deerflow.sandbox.local:LocalSandboxProvider"},
+            "database": {"backend": "sqlite"},
+            "authorization": {"enabled": True, "fail_closed": True, "provider": {"use": "test.Provider"}},
+            "auth": {"oidc": {"enabled": True, "providers": {"realm": {"display_name": "Test", "issuer": "https://identity.example.test", "client_id": "test"}}}},
+            "agent_directory": d.config.model_dump(),
+        }
+    )
+    monkeypatch.delenv("DEER_FLOW_AUTH_DISABLED", raising=False)
+    if invalid == "oidc-disabled":
+        config.auth.oidc.enabled = False
+    if invalid == "missing-provider":
+        config.auth.oidc.providers = {}
+    if invalid == "auth-bypass":
+        monkeypatch.setenv("DEER_FLOW_AUTH_DISABLED", "1")
+    if invalid == "authorization-disabled":
+        config.authorization.enabled = False
+    if invalid == "authorization-open":
+        config.authorization.fail_closed = False
+    if invalid == "missing-policy":
+        config.authorization.provider = None
+    if invalid == "ephemeral-db":
+        config.database.backend = "memory"
+    monkeypatch.setattr(app_config, "get_app_config", lambda: config)
+    if invalid:
+        with pytest.raises(ValueError, match="directory requires"):
+            get_directory(private)
+    else:
+        assert get_directory(private).config.provider == "realm"

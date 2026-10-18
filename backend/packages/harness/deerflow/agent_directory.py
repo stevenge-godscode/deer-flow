@@ -362,7 +362,15 @@ def get_directory(private_store=None):
     settings = getattr(config, "agent_directory", None)
     if not settings or not settings.enabled:
         return None
-    if not config.auth.enabled or not config.authorization.enabled or not config.authorization.fail_closed or config.database.backend not in ("sqlite", "postgres"):
+    if (
+        not config.auth.oidc.enabled
+        or settings.provider not in config.auth.oidc.providers
+        or os.getenv("DEER_FLOW_AUTH_DISABLED") == "1"
+        or not config.authorization.enabled
+        or not config.authorization.fail_closed
+        or config.authorization.provider is None
+        or config.database.backend not in ("sqlite", "postgres")
+    ):
         raise ValueError("Agent directory requires authenticated durable users and fail-closed authorization")
     if private_store is None:
         from deerflow.persistence.agents import make_private_agent_store
