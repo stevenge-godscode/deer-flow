@@ -23,7 +23,7 @@ from deerflow.tools.builtins import (
     task_tool,
     view_image_tool,
 )
-from deerflow.tools.mcp_metadata import tag_mcp_tool
+from deerflow.tools.mcp_metadata import get_mcp_source, tag_mcp_tool
 from deerflow.tools.sync import make_sync_tool_wrapper
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,7 @@ def get_available_tools(
     model_name: str | None = None,
     subagent_enabled: bool = False,
     *,
+    mcp_plugins: list[str] | None = None,
     include_upload_tool: bool = True,
     include_conversation_reader: bool = False,
     app_config: AppConfig | None = None,
@@ -180,10 +181,24 @@ def get_available_tools(
                     # policy-filtered list because their skills load at startup.
                     for t in mcp_tools:
                         tag_mcp_tool(t)
+            from deerflow.mcp.user_tools import get_user_mcp_tools
+
+            personal_tools, personal_config = get_user_mcp_tools()
+            colliding_names = extensions_config.mcp_servers.keys() & personal_config.mcp_servers.keys()
+            personal_tools = [tool for tool in personal_tools if (source := get_mcp_source(tool)) and source["server_name"] not in colliding_names]
+            available_servers = {name: server for name, server in personal_config.mcp_servers.items() if name not in colliding_names}
+            mcp_tools = [*mcp_tools, *personal_tools]
+            extensions_config = extensions_config.model_copy(update={"mcp_servers": {**extensions_config.mcp_servers, **available_servers}})
+            if mcp_plugins is not None:
+                from deerflow.capabilities.runtime import filter_mcp_plugins
+
+                mcp_tools = filter_mcp_plugins(mcp_tools, mcp_plugins, extensions_config)
         except ImportError:
+            mcp_tools = []
             logger.warning("MCP module not available. Install 'langchain-mcp-adapters' package to enable MCP tools.")
         except Exception as e:
-            logger.error(f"Failed to get cached MCP tools: {e}")
+            mcp_tools = []
+            logger.error("MCP discovery failed (%s)", type(e).__name__)
 
     # Add invoke_acp_agent tool if any ACP agents are configured
     acp_tools: list[BaseTool] = []

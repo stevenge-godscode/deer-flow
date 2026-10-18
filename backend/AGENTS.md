@@ -397,3 +397,5 @@ See `docs/` directory for detailed documentation:
 - [plan_mode_usage.md](docs/plan_mode_usage.md) - Plan mode with TodoList
 
 Scope: `packages/harness/deerflow/authz/AGENTS.md`.
+
+Personal MCP ownership and connection revision checks are documented in docs/personal-connections-23.md. Retain live published-directory and background capability admission; a personal-config failure must not publish deployment tools as fallback. This branch has no accepted CMDB/Guance source identity integration.
