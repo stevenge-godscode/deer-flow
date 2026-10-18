@@ -19,6 +19,7 @@ class DirectoryConfig(BaseModel):
     realm: str = ""
     provider: str = ""
     credential_file: str = ""
+    manager_role: str = Field(default="agent-directory-manager", pattern=r"^agent-directory-[a-z0-9-]+$")
     profiles: dict[str, DirectoryProfile] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -29,6 +30,8 @@ class DirectoryConfig(BaseModel):
                 raise ValueError("Directory identity origin must be an HTTPS origin")
             if not self.realm or "/" in self.realm or not self.provider or not self.credential_file or not self.profiles:
                 raise ValueError("Directory requires an explicit realm, provider, credential and approved profiles")
+            if self.manager_role in {p.role for p in self.profiles.values()}:
+                raise ValueError("Manager role must be separate from assignable access profiles")
             if len({p.role for p in self.profiles.values()}) != len(self.profiles):
                 raise ValueError("Directory profiles require distinct managed roles")
         return self

@@ -166,6 +166,9 @@ class AgentDirectory:
             # Directory reads and tools must never gain access on provider failure.
             return set()
 
+    def is_manager(self, user_id):
+        return self.config.realm + "/" + self.config.manager_role in self.roles(user_id)
+
     def visible(self, user_id):
         state = self.state()
         if not state["agents"]:

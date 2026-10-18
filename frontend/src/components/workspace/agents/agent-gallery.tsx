@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { useAgents } from "@/core/agents";
-import { useAuth } from "@/core/auth/AuthProvider";
+import { useAgentDirectoryAccess } from "@/core/agents/use-agent-directory-access";
 import { useI18n } from "@/core/i18n/hooks";
 
 import { AgentCard } from "./agent-card";
 
 export function AgentGallery() {
   const { t, locale } = useI18n();
-  const { user } = useAuth();
+  const access = useAgentDirectoryAccess();
   const { agents, isLoading } = useAgents();
   const router = useRouter();
 
@@ -32,7 +32,7 @@ export function AgentGallery() {
           </p>
         </div>
         <div className="flex gap-2">
-          {user?.system_role === "admin" && (
+          {access.data?.can_manage === true && (
             <Button variant="outline" asChild>
               <Link href="/workspace/agent-directory">
                 {locale === "zh-CN"

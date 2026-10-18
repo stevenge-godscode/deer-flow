@@ -10,7 +10,16 @@ import {
 
 import AgentDirectoryPage from "@/app/workspace/agent-directory/page";
 
-const state = rs.hoisted(() => ({ role: "admin", fetch: rs.fn() }));
+const state = rs.hoisted(() => ({
+  role: "admin",
+  manager: false,
+  fetch: rs.fn(),
+}));
+rs.mock("@/core/agents/use-agent-directory-access", () => ({
+  useAgentDirectoryAccess: () => ({
+    data: { can_manage: state.role === "admin" || state.manager },
+  }),
+}));
 rs.mock("@/core/api/fetcher", () => ({ fetch: state.fetch }));
 rs.mock("@/core/config", () => ({ getBackendBaseURL: () => "" }));
 rs.mock("@/core/auth/AuthProvider", () => ({
@@ -54,6 +63,7 @@ afterEach(() => {
   cleanup();
   rs.resetAllMocks();
   state.role = "admin";
+  state.manager = false;
 });
 describe("Agent directory account authority", () => {
   it("ordinary users cannot fetch administrator data", () => {
@@ -61,6 +71,19 @@ describe("Agent directory account authority", () => {
     const client = mount();
     expect(screen.getByText("仅管理员可管理智能体与账号授权。")).not.toBeNull();
     expect(state.fetch).not.toHaveBeenCalled();
+    client.clear();
+  });
+  it("allows a scoped manager without elevating the system role", async () => {
+    state.role = "user";
+    state.manager = true;
+    state.fetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(directory),
+    });
+    const client = mount();
+    await screen.findByText("person@example.com");
+    expect(state.role).toBe("user");
+    expect(screen.queryByText("仅管理员可管理智能体与账号授权。")).toBeNull();
     client.clear();
   });
   it("binds a grant to actor and revision, and retains denied status after conflict", async () => {

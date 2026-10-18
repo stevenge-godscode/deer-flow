@@ -38,10 +38,15 @@ class Membership(Enable):
 
 
 async def _admin(request: Request, expected_user: str | None = None):
-    await require_admin_user(request, detail="Administrator session required")
+    user = await get_current_user_from_request(request)
     if getattr(request.state, "auth_source", None) != AUTH_SOURCE_SESSION:
         raise HTTPException(403, "Administrator browser session required")
-    user = await get_current_user_from_request(request)
+    if user.system_role == "admin":
+        await require_admin_user(request, detail="Administrator session required")
+    else:
+        directory = get_directory()
+        if directory is None or not await asyncio.to_thread(directory.is_manager, str(user.id)):
+            raise HTTPException(403, "Agent directory manager role required")
     if expected_user is not None and expected_user != str(user.id):
         raise HTTPException(409, "Signed-in account changed; reload this page")
     return str(user.id)
@@ -65,6 +70,17 @@ async def _run(function):
         raise HTTPException(422, "Directory request is invalid or the source is unavailable") from None
     except Exception:
         raise HTTPException(503, "Agent directory or identity service is unavailable") from None
+
+
+@router.get("/access")
+async def access(request: Request):
+    """Self capability only; no account/catalog data and no system-role change."""
+    user = await get_current_user_from_request(request)
+    if getattr(request.state, "auth_source", None) != AUTH_SOURCE_SESSION:
+        raise HTTPException(403, "Browser session required")
+    directory = get_directory()
+    allowed = directory is not None and (user.system_role == "admin" or await asyncio.to_thread(directory.is_manager, str(user.id)))
+    return {"can_manage": bool(allowed)}
 
 
 @router.get("")

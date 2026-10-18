@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAgentDirectoryAccess } from "@/core/agents/use-agent-directory-access";
 import { fetch } from "@/core/api/fetcher";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { getBackendBaseURL } from "@/core/config";
@@ -55,7 +56,8 @@ export default function AgentDirectoryPage() {
   const [error, setError] = useState("");
   const key = ["agent-directory", user?.id];
   const base = `${getBackendBaseURL()}/api/agent-directory`;
-  const admin = user?.system_role === "admin";
+  const access = useAgentDirectoryAccess();
+  const admin = access.data?.can_manage === true;
   const query = useQuery({
     queryKey: key,
     enabled: admin,

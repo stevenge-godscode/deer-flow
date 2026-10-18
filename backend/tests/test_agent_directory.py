@@ -311,3 +311,36 @@ def test_conflicting_skill_publish_and_enable_are_atomic(directory, monkeypatch,
     assert d.state()["agents"]["shared-v1"]["enabled"] is False
     identity.members.add("alice-sub")
     assert [s.name for s in d.skills("alice")] == ["managed"]
+
+
+@pytest.mark.asyncio
+async def test_scoped_manager_session_needs_live_role_and_never_system_admin(directory, monkeypatch):
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    from app.gateway.routers import agent_directory as routes
+
+    d, identity, private = directory
+    user = SimpleNamespace(id="alice", system_role="user")
+
+    async def current(request):
+        return user
+
+    monkeypatch.setattr(routes, "get_current_user_from_request", current)
+    monkeypatch.setattr(routes, "get_directory", lambda: d)
+    request = Request({"type": "http"})
+    request.state.auth_source = "session"
+    with pytest.raises(HTTPException):
+        await routes._admin(request)
+    identity.roles = lambda subject: {"realm/agent-directory-manager"}
+    assert await routes._admin(request, "alice") == "alice"
+    assert (await routes.access(request))["can_manage"] is True
+    assert user.system_role == "user"
+    request.state.auth_source = "pat"
+    with pytest.raises(HTTPException):
+        await routes._admin(request)
+    request.state.auth_source = "session"
+    identity.roles = lambda subject: set()
+    with pytest.raises(HTTPException):
+        await routes._admin(request)
+    assert (await routes.access(request))["can_manage"] is False
