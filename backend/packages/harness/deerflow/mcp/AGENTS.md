@@ -55,3 +55,5 @@
 
 - Operator templates (`mcp/templates.py`) fix transport and bridge headers; the native personal store holds only user-provided source fields. Runtime materialization binds the trusted owner and participates in the existing configuration hash and stale-call checks. Template changes/removal fail closed. Never copy bridge secrets into user files or allow credentials to follow redirects. Keep source tool names stable only for validated approved templates; session/cache identities remain owner/config scoped.
 - Directory roles never imply shared MCP credentials. The `mcp_service_auth` fallback is removed. Explicit user-auth maps for unrelated operator integrations retain their existing behavior.
+
+Re-read operator templates and bridge identity at tool execution even when the personal file is unchanged; these operator changes revoke previously materialized connections too.
