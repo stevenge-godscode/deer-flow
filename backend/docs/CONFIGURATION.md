@@ -1237,3 +1237,7 @@ task.
 ## Examples
 
 See `config.example.yaml` for complete examples of all configuration options.
+
+### Published Agent MCP service authentication
+
+An operator may add `mcp_service_auth: [cmdb-readonly]` to an approved `agent_directory.profiles.<profile>` entry. For an account without a personal `user_auth.users` entry, an exact enabled published definition under that profile may use the named MCP server's existing service header. Credentials remain in operator MCP server configuration. Live IdP membership, normal resource authorization and header validation apply on each call. Unknown/private definitions, missing provenance, disabled versions, revoked roles and unavailable identity services deny access; ordinary mapped credentials keep precedence. This opt-in is empty by default.

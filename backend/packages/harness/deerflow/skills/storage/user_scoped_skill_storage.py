@@ -220,6 +220,13 @@ class UserScopedSkillStorage(LocalSkillStorage):
             for s in skills
         ]
 
+        from deerflow.agent_directory import get_directory
+
+        directory = get_directory()
+        if directory is not None:
+            managed = [dataclasses.replace(skill, enabled=self.get_skill_enabled_state(skill.name) and extensions_config.is_skill_enabled(skill.name, skill.category.value)) for skill in directory.skills(self._user_id)]
+            names = {s.name for s in managed}
+            skills = [s for s in skills if s.name not in names] + managed
         if enabled_only:
             skills = [s for s in skills if s.enabled]
 

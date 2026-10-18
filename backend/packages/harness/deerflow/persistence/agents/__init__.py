@@ -35,7 +35,7 @@ __all__ = [
 _file_store_singleton: AgentStore | None = None
 
 
-def make_agent_store(config: AppConfig) -> AgentStore:
+def make_private_agent_store(config: AppConfig) -> AgentStore:
     """Build (or reuse) the store selected by ``config.agent_storage.backend``.
 
     ``db`` requires ``database.backend`` to be ``sqlite`` or ``postgres``; a
@@ -56,6 +56,15 @@ def make_agent_store(config: AppConfig) -> AgentStore:
         return SqlAgentStore(config.database.app_sync_sqlalchemy_url)
 
     return _file_store()
+
+
+def make_agent_store(config: AppConfig) -> AgentStore:
+    private = make_private_agent_store(config)
+    if getattr(getattr(config, "agent_directory", None), "enabled", False):
+        from deerflow.agent_directory import DirectoryAgentStore, get_directory
+
+        return DirectoryAgentStore(private, get_directory(private))
+    return private
 
 
 def get_agent_store() -> AgentStore:

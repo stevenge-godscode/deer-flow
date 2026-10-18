@@ -4131,6 +4131,7 @@ class TestSubagentGuardrailAttribution:
         user_role=None,
         oauth_provider=None,
         oauth_id=None,
+        agent_definition_ref=None,
         run_id=None,
         loop_detection_recorder=None,
         tool_promotion_recorder=None,
@@ -4163,6 +4164,7 @@ class TestSubagentGuardrailAttribution:
             user_role=user_role,
             oauth_provider=oauth_provider,
             oauth_id=oauth_id,
+            agent_definition_ref=agent_definition_ref,
             run_id=run_id,
             loop_detection_recorder=loop_detection_recorder,
             tool_promotion_recorder=tool_promotion_recorder,
@@ -4186,6 +4188,7 @@ class TestSubagentGuardrailAttribution:
             user_role="admin",
             oauth_provider="keycloak",
             oauth_id="subj-123",
+            agent_definition_ref={"schema": "deerflow.agent-definition-ref/v1", "name": "shared-v1", "digest": "a" * 64},
             run_id="run-42",
         )
         fake_agent = _FakeStreamAgent()
@@ -4200,6 +4203,7 @@ class TestSubagentGuardrailAttribution:
         assert context.get("user_role") == "admin"
         assert context.get("oauth_provider") == "keycloak"
         assert context.get("oauth_id") == "subj-123"
+        assert context["__deerflow_agent_definition_ref"] == {"schema": "deerflow.agent-definition-ref/v1", "name": "shared-v1", "digest": "a" * 64}
         assert context.get("run_id") == "run-42"
         assert context.get("is_subagent") is True
         lease_owner = context.get("sandbox_lease_owner_id")

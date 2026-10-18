@@ -177,3 +177,8 @@ The post-admission metadata barrier must recheck that exact owner/incarnation;
 errors, timeout and child-task cancellation stop startup. Legacy owned NULL
 incarnations are initialized atomically without changing timestamps or content.
 No foreign/unowned row is reassigned on this path. See SCOPED_AUTHORIZATION.md.
+
+
+`agent_directory.py` is session-only administrator management. Authorize before loading any catalog, account or source data; PAT/internal callers are denied. Mutations require X-Expected-User-Id and expected_revision. Never return identity credential/user response payloads, infer account linking from email, or turn a failed identity read into a successful empty membership list.
+
+Directory management also accepts an own-realm live agent-directory-manager role in a browser session. It is separate from native system_role and assignable access profiles; PAT/internal calls remain denied. /api/agent-directory/access returns only the current actor capability. Role lookup failure denies management.

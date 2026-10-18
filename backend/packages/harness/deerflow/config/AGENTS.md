@@ -105,3 +105,12 @@ OIDC `allow_verified_phone` defaults to false. Enabling it allows ordinary
 email-less JIT only from `OIDCIdentity.verified_phone`, extracted from the verified
 ID token (not merged userinfo). Existing subject bindings, domain restrictions,
 and admin-email rules remain authoritative. Request the `phone` scope explicitly.
+
+
+`agent_directory` is typed by DirectoryConfig and defaults disabled. Approved profiles bind a distinct `agent-directory-*` identity role to exact permission IDs; only the operator defines profiles/identity origin/realm/provider/Secret path. The default catalog root is private persistent shared state, not an executable source overlay. Enabled directory resolution additionally requires durable authenticated users and fail-closed resource authorization.
+
+Directory manager_role defaults agent-directory-manager and must differ from every assignable profile role; only the identity operator assigns managers.
+
+Directory bootstrap checks AuthAppConfig.oidc.enabled and its provider map, rejects DEER_FLOW_AUTH_DISABLED, and requires a durable DB plus configured fail-closed authorization. AuthAppConfig has no top-level enabled field; retain typed-model bootstrap coverage.
+
+DirectoryProfile.mcp_service_auth defaults empty and contains only operator-approved MCP server names, never credentials. Runtime credential resolution requires exact enabled immutable directory provenance plus live identity role; the ordinary MCP user map remains preferred.

@@ -31,6 +31,8 @@ class GuardrailRequest:
     mcp_source: dict[str, str] | None = None
     is_mcp: bool = False
     agent_name: str | None = None
+    # Original server-bound immutable definition, retained across delegation.
+    agent_definition_ref: dict[str, str] | None = None
 
 
 @dataclass

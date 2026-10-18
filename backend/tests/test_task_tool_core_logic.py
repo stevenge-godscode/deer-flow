@@ -599,6 +599,7 @@ def test_task_tool_forwards_is_internal_true_to_executor(monkeypatch):
     """is_internal=True must propagate to SubagentExecutor."""
     runtime = _make_runtime()
     runtime.context["is_internal"] = True
+    runtime.context["__deerflow_agent_definition_ref"] = {"schema": "deerflow.agent-definition-ref/v1", "name": "shared-v1", "digest": "a" * 64}
     captured = {}
 
     class DummyExecutor:
@@ -622,6 +623,7 @@ def test_task_tool_forwards_is_internal_true_to_executor(monkeypatch):
 
     _run_task_tool(runtime=runtime, description="test", prompt="p", subagent_type="general-purpose", tool_call_id="tc-1")
     assert captured["executor_kwargs"]["is_internal"] is True
+    assert captured["executor_kwargs"]["agent_definition_ref"] == runtime.context["__deerflow_agent_definition_ref"]
 
 
 def test_task_tool_forwards_is_internal_false_to_executor(monkeypatch):

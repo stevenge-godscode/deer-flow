@@ -198,3 +198,7 @@ The fork project-chat frontend CI checks the exact pushed commit on Node 22 with
 The default and custom-agent chat headers share BrowserTuiTrigger. Browser TUI links preserve only public model/mode settings; the authenticated hosting component binds owner/Project/Agent/thread through the Gateway.
 
 Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.
+
+`/workspace/agent-directory` provides administrator publication, role/account assignments, version enable/disable and audit. Its query cache is account-scoped; mutations include current actor ID and server catalog revision, never optimistically confirm grants, and refresh after failure. Ordinary users never fetch administrator data. New strings support en-US and zh-CN.
+
+Directory entry visibility follows the actor-scoped live self-capability query, not system_role alone; the separate identity manager role grants no other administrator surface. Server APIs recheck every mutation.

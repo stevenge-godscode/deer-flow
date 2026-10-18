@@ -499,3 +499,89 @@ def test_gateway_masks_sensitive_user_auth_extra_keys():
     merged = _merge_preserving_secrets(masked, server)
     assert merged.user_auth.model_extra["client_secret"] == "super-secret"
     assert merged.user_auth.users == {"u1": "Bearer s1"}
+
+
+@pytest.mark.parametrize("mapped", [None, "Bearer personal", ""])
+def test_directory_service_auth_only_for_unmapped_users_and_live_exact_ref(mapped):
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
+
+    ref = {"schema": "deerflow.agent-definition-ref/v1", "name": "shared", "digest": "a" * 64}
+    runtime = _runtime_for_user("u1")
+    runtime.context[AGENT_DEFINITION_CONTEXT_KEY] = ref
+    config = _config(users={} if mapped is None else {"u1": mapped})
+    directory = SimpleNamespace(authorizes_service_auth=lambda r, u, s: r == ref and u == "u1" and s == "shared-http")
+    with patch("deerflow.agent_directory.get_directory", return_value=directory):
+        interceptor = build_user_scoped_auth_interceptor(config)
+        if mapped == "":
+            with pytest.raises(ToolException):
+                asyncio.run(interceptor(_request(runtime=runtime), _echo_handler))
+        else:
+            result = asyncio.run(interceptor(_request(runtime=runtime), _echo_handler))
+            assert result.headers["Authorization"] == (mapped or "Bearer discovery-token")
+
+
+def test_directory_service_auth_rechecks_role_for_same_interceptor_and_sanitizes_failure():
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
+
+    runtime = _runtime_for_user("u1")
+    runtime.context[AGENT_DEFINITION_CONTEXT_KEY] = {"name": "shared"}
+    authority = AsyncMock()
+    directory = SimpleNamespace(authorizes_service_auth=lambda *_: True)
+    with patch("deerflow.agent_directory.get_directory", return_value=directory):
+        interceptor = build_user_scoped_auth_interceptor(_config())
+        asyncio.run(interceptor(_request(runtime=runtime), _echo_handler))
+        directory.authorizes_service_auth = lambda *_: False
+        with pytest.raises(ToolException):
+            asyncio.run(interceptor(_request(runtime=runtime), authority))
+        directory.authorizes_service_auth = lambda *_: (_ for _ in ()).throw(RuntimeError("private-token-value"))
+        with pytest.raises(ToolException) as exc:
+            asyncio.run(interceptor(_request(runtime=runtime), authority))
+        assert "private-token-value" not in str(exc.value)
+        authority.assert_not_awaited()
+
+
+@pytest.mark.parametrize("context", [{}, {"agent_name": "shared"}])
+def test_directory_service_auth_never_uses_private_agent_or_unbound_discovery(context):
+    runtime = _runtime_for_user("u1")
+    runtime.context.update(context)
+    with patch("deerflow.agent_directory.get_directory") as get_directory:
+        with pytest.raises(ToolException):
+            asyncio.run(build_user_scoped_auth_interceptor(_config())(_request(runtime=runtime), _echo_handler))
+        get_directory.assert_not_called()
+
+
+@pytest.mark.parametrize("value", ["Bearer secret\n", " Bearer secret", "Bearer 秘密"])
+def test_directory_service_header_safety_never_leaks_value(value):
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
+
+    runtime = _runtime_for_user("u1")
+    runtime.context[AGENT_DEFINITION_CONTEXT_KEY] = {"name": "shared"}
+    config = _config()
+    config.mcp_servers["shared-http"].headers = {"authorization": value}
+    directory = SimpleNamespace(authorizes_service_auth=lambda *_: True)
+    handler = AsyncMock()
+    with patch("deerflow.agent_directory.get_directory", return_value=directory):
+        with pytest.raises(ToolException) as exc:
+            asyncio.run(build_user_scoped_auth_interceptor(config)(_request(runtime=runtime), handler))
+    assert value not in str(exc.value)
+    handler.assert_not_awaited()
+
+
+def test_directory_service_header_replaces_request_header_case_insensitively_off_loop():
+    import threading
+
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
+
+    runtime = _runtime_for_user("u1")
+    runtime.context[AGENT_DEFINITION_CONTEXT_KEY] = {"name": "shared"}
+    config = _config()
+    config.mcp_servers["shared-http"].headers = {"authorization": "Bearer operator-service"}
+    caller = threading.get_ident()
+
+    def allow(*_):
+        assert threading.get_ident() != caller
+        return True
+
+    with patch("deerflow.agent_directory.get_directory", return_value=SimpleNamespace(authorizes_service_auth=allow)):
+        result = asyncio.run(build_user_scoped_auth_interceptor(config)(_request(runtime=runtime, headers={"Authorization": "Bearer untrusted"}), _echo_handler))
+    assert result.headers == {"authorization": "Bearer operator-service"}

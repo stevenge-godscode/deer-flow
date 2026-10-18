@@ -36,6 +36,7 @@ from deerflow.authz.principal import normalize_authz_attributes
 from deerflow.config import get_app_config
 from deerflow.config.app_config import AppConfig
 from deerflow.models import create_chat_model
+from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
 from deerflow.runtime.user_context import DEFAULT_USER_ID
 from deerflow.skills.types import Skill
 from deerflow.subagents.capacity import (
@@ -798,6 +799,7 @@ class SubagentExecutor:
         tool_promotion_recorder: Any | None = None,
         tool_progress_recorder: Any | None = None,
         context_snapshot: ParentContextSnapshot | None = None,
+        agent_definition_ref: dict[str, str] | None = None,
     ):
         """Initialize the executor.
 
@@ -868,6 +870,11 @@ class SubagentExecutor:
         self.thread_data = thread_data
         self.uploaded_files = deepcopy(uploaded_files) if uploaded_files is not None else None
         self.context_snapshot = context_snapshot
+        # Keep the original admitted directory version even when the child has
+        # its own specialist name; never take this identity from model input.
+        from deerflow.config.definition_snapshot import validate_agent_definition_reference
+
+        self.agent_definition_ref = validate_agent_definition_reference(agent_definition_ref) if agent_definition_ref is not None else None
         self.thread_id = thread_id
         # Generate trace_id if not provided (for top-level calls)
         self.trace_id = trace_id or str(uuid.uuid4())[:8]
@@ -1566,6 +1573,9 @@ class SubagentExecutor:
             context[_SANDBOX_COMMAND_SCOPE_CONTEXT_KEY] = sandbox_lease_owner_id
             execution_context = context
             context["agent_id"] = self.config.name
+            context["agent_name"] = self.config.name
+            if self.agent_definition_ref is not None:
+                context[AGENT_DEFINITION_CONTEXT_KEY] = dict(self.agent_definition_ref)
             if self.loop_detection_recorder is not None:
                 context[LOOP_DETECTION_RECORDER_CONTEXT_KEY] = self.loop_detection_recorder
             if self.tool_promotion_recorder is not None:
