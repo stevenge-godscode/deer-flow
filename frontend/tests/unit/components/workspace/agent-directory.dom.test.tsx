@@ -134,7 +134,7 @@ describe("Agent directory account authority", () => {
         ),
     );
     const client = mount();
-    const select = await screen.findByLabelText("已固化的源智能体");
+    const select = await screen.findByLabelText("我的源智能体");
     fireEvent.change(select, {
       target: { value: JSON.stringify([b.owner, b.name]) },
     });

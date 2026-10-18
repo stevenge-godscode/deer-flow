@@ -10,9 +10,7 @@ interceptor uses.
 
 The server entry's static ``headers`` are used only for startup tool discovery
 (``tools/list``); they never authenticate a user's tool call when ``user_auth``
-is enabled for that server, except for an exact live published definition whose
-operator-approved profile explicitly opts this server into service authentication,
-or under an explicit ``on_missing:
+is enabled for that server, except under an explicit ``on_missing:
 "passthrough"`` opt-out.
 
 Fail-closed by default: an unmapped user (including the anonymous
@@ -23,9 +21,7 @@ instead of another user's credential or the discovery credential.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import Mapping
 from typing import Any
 
 from langchain_core.tools import ToolException
@@ -57,24 +53,6 @@ def _current_runtime() -> Any | None:
         return None
 
 
-def _directory_service_credential(runtime, user_id, server_name, header, service_headers):
-    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
-
-    context = getattr(runtime, "context", None)
-    reference = context.get(AGENT_DEFINITION_CONTEXT_KEY) if isinstance(context, Mapping) else None
-    if reference is None:
-        return ""
-    from deerflow.agent_directory import get_directory
-
-    try:
-        directory = get_directory()
-        if directory is None or not directory.authorizes_service_auth(reference, user_id, server_name):
-            return ""
-        return next((value for name, value in service_headers.items() if name.lower() == header.lower()), "")
-    except Exception:
-        raise ToolException("Published Agent service authentication is unavailable") from None
-
-
 def build_user_scoped_auth_interceptor(extensions_config: ExtensionsConfig) -> Any | None:
     """Build a tool interceptor injecting per-user credentials, or ``None``.
 
@@ -87,7 +65,6 @@ def build_user_scoped_auth_interceptor(extensions_config: ExtensionsConfig) -> A
     # differs from the static one only in case still *replaces* it at the
     # adapter's case-sensitive connection merge (see ``mcp/headers.py``).
     spellings_by_server: dict[str, dict[str, str]] = {}
-    service_headers_by_server: dict[str, dict[str, str]] = {}
     for server_name, server_config in extensions_config.get_enabled_mcp_servers().items():
         if server_config.user_auth is None or not server_config.user_auth.enabled:
             continue
@@ -104,7 +81,6 @@ def build_user_scoped_auth_interceptor(extensions_config: ExtensionsConfig) -> A
             )
             continue
         user_auth_by_server[server_name] = server_config.user_auth
-        service_headers_by_server[server_name] = dict(server_config.headers or {})
         spellings_by_server[server_name] = header_spellings(server_config.headers)
 
     if not user_auth_by_server:
@@ -127,8 +103,6 @@ def build_user_scoped_auth_interceptor(extensions_config: ExtensionsConfig) -> A
         # ExtensionsConfig.resolve_env_variables stores "" for those, and an
         # empty credential must fail closed rather than send an empty header.
         credential = user_auth.users.get(user_id, "")
-        if user_id not in user_auth.users:
-            credential = await asyncio.to_thread(_directory_service_credential, runtime, user_id, request.server_name, user_auth.header, service_headers_by_server[request.server_name])
         if not credential:
             if user_auth.on_missing == "passthrough":
                 return await handler(request)

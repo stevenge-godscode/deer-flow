@@ -180,3 +180,16 @@ async def test_null_memory_policy_is_rejected() -> None:
         AgentCreateRequest(name="bad-memory", memory_enabled=None)
     with pytest.raises(ValidationError):
         AgentUpdateRequest(memory_enabled=None)
+
+
+async def test_plugin_selection_persists_empty_omitted_and_null(_agent_env):
+    created = await create_agent_endpoint(AgentCreateRequest(name="selected", mcp_plugins=["stable-installation"], skills=["research"]))
+    assert created.mcp_plugins == ["stable-installation"]
+    fetched = await get_agent("selected")
+    assert fetched.mcp_plugins == ["stable-installation"]
+    assert (await update_agent("selected", AgentUpdateRequest(description="changed"))).mcp_plugins == ["stable-installation"]
+    assert (await update_agent("selected", AgentUpdateRequest(mcp_plugins=[]))).mcp_plugins == []
+    assert (await get_agent("selected")).mcp_plugins == []
+    cleared = await update_agent("selected", AgentUpdateRequest(mcp_plugins=None))
+    assert cleared.mcp_plugins is None
+    assert cleared.skills == ["research"]

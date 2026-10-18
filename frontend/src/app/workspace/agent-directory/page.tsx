@@ -151,13 +151,22 @@ export default function AgentDirectoryPage() {
           ← {zh ? "智能体" : "Agents"}
         </Link>
         <h1 className="text-2xl font-semibold">
-          {zh ? "智能体与账号管理" : "Agent and account management"}
+          {zh ? "智能体发布与分配" : "Agent publishing and access"}
         </h1>
         <p className="text-muted-foreground text-sm">
           {zh
-            ? "发布共享版本，通过身份角色分配使用权。每个账号的会话、文件和项目保持独立。"
-            : "Publish shared versions and assign access through identity roles. Each account keeps its own chats, files and projects."}
+            ? "在原生智能体页面创建和编辑，在此发布并分配使用权。使用者在“我的插件”配置自己的业务账号。"
+            : "Create and edit in Agents, then publish and assign access here. Each user connects their business account under My plugins."}
         </p>
+        <Link href="/workspace/agents/new" className="mr-4 text-sm underline">
+          {zh ? "创建智能体" : "Create Agent"}
+        </Link>
+        <Link
+          href="/workspace/capabilities?tab=plugins"
+          className="mr-4 text-sm underline"
+        >
+          {zh ? "配置我的连接" : "My connections"}
+        </Link>
         <Button
           variant="outline"
           disabled={busy}
@@ -269,8 +278,8 @@ export default function AgentDirectoryPage() {
             )}
             <p className="text-muted-foreground text-sm">
               {zh
-                ? "角色同时控制共享智能体、已批准的工具和数据访问。撤销后，新的运行与后续工具调用会重新检查权限。"
-                : "Roles govern published Agents and approved tool/data access. New runs and subsequent tool calls check live authority."}
+                ? "角色分配智能体使用权；数据范围由使用者自己的业务账号决定。撤销后，新的运行与后续工具调用会重新检查权限。"
+                : "Roles grant Agent use. Source systems enforce data access using each user’s own credentials."}
             </p>
           </section>
           <section className="space-y-3 rounded-lg border p-4">
@@ -278,7 +287,7 @@ export default function AgentDirectoryPage() {
               {zh ? "发布新版本" : "Publish a version"}
             </h2>
             <label className="block space-y-1 text-sm">
-              {zh ? "已固化的源智能体" : "Immutable source Agent"}
+              {zh ? "我的源智能体" : "My source Agent"}
               <select
                 className={selectStyle}
                 value={source}

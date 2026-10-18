@@ -184,21 +184,6 @@ class AgentDirectory:
             return False
         return self.config.realm + "/" + self.config.profiles[record["profile"]].role in self.roles(user_id)
 
-    def authorizes_service_auth(self, reference, user_id, server_name):
-        """Explicit shared-service authentication for an exact live definition.
-
-        The caller supplies only a server-owned immutable reference. Credentials
-        stay in the operator's MCP server config, never in this catalog.
-        """
-        from deerflow.config.definition_snapshot import validate_agent_definition_reference
-
-        try:
-            ref = validate_agent_definition_reference(reference)
-        except (ValueError, TypeError):
-            return False
-        record = self.state()["agents"].get(ref["name"])
-        return bool(record and record["enabled"] and record["definition"]["digest"] == ref["digest"] and server_name in self.config.profiles[record["profile"]].mcp_service_auth and self.allowed(ref["name"], user_id))
-
     def snapshot(self, name, user_id):
         record = self.state()["agents"].get(name)
         if record is None or not self.allowed(name, user_id):
@@ -222,8 +207,11 @@ class AgentDirectory:
         if profile not in self.config.profiles:
             raise ValueError("Unknown approved access profile")
         snapshot = self.private.get_definition_snapshot(source_name, user_id=source_owner)
-        if not snapshot.config.immutable_definition or snapshot.config.skills is None:
-            raise ValueError("Only immutable Agents with explicit pinned skills can be published")
+        if snapshot.config.skills is None or (not snapshot.config.immutable_definition and snapshot.config.mcp_plugins is None):
+            raise ValueError("Select explicit plugins and skills in the native Agent settings before publishing")
+        pins = dict(snapshot.config.skill_body_sha256)
+        # A native editable Agent becomes an immutable catalog version here.
+        # Never force administrators to manufacture snapshot fields outside the UI.
         # Capture full verified bodies, never copy personal workspaces or credentials.
         bodies = {}
         if snapshot.config.skills:
@@ -232,14 +220,16 @@ class AgentDirectory:
 
             registry = {s.name: s for s in get_or_new_user_skill_storage(source_owner).load_skills(enabled_only=False)}
             for skill_name in snapshot.config.skills:
-                skill = verified_skill(registry[skill_name], snapshot.config.skill_body_sha256)
+                if not snapshot.config.immutable_definition:
+                    pins[skill_name] = hashlib.sha256(registry[skill_name].skill_file.read_bytes()).hexdigest()
+                skill = verified_skill(registry[skill_name], pins)
                 bodies[skill_name] = skill.skill_file.read_bytes().decode("utf-8")
-                if hashlib.sha256(bodies[skill_name].encode("utf-8")).hexdigest() != snapshot.config.skill_body_sha256[skill_name]:
+                if hashlib.sha256(bodies[skill_name].encode("utf-8")).hexdigest() != pins[skill_name]:
                     raise ValueError("Skill changed during publication")
         with self.transaction(expected_revision) as state:
             if name in state["agents"] or any(a.name == name for _, a in self.private.list_all()):
                 raise DirectoryConflict("Published version name is already reserved")
-            definition = definition_document({**snapshot.config.model_dump(mode="json"), "name": name}, snapshot.soul or "", name)
+            definition = definition_document({**snapshot.config.model_dump(mode="json"), "name": name, "immutable_definition": True, "skill_body_sha256": pins}, snapshot.soul or "", name)
             state["agents"][name] = {"name": name, "profile": profile, "enabled": True, "definition": definition, "skills": bodies, "source_digest": snapshot.digest}
             self._validate_skill_compatibility(state)
             return self.commit(state, actor, "publish", {"name": name, "profile": profile, "digest": definition["digest"]})

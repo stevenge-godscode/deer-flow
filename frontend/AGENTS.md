@@ -202,3 +202,5 @@ Genesis business branding is isolated in branding/, frontend/src/core/branding/ 
 `/workspace/agent-directory` provides administrator publication, role/account assignments, version enable/disable and audit. Its query cache is account-scoped; mutations include current actor ID and server catalog revision, never optimistically confirm grants, and refresh after failure. Ordinary users never fetch administrator data. New strings support en-US and zh-CN.
 
 Directory entry visibility follows the actor-scoped live self-capability query, not system_role alone; the separate identity manager role grants no other administrator surface. Server APIs recheck every mutation.
+
+Personal MCP configuration under Capability Center uses account-scoped query keys and owner-only API calls; shared MCP controls remain administrator-only. Approved template adapters reuse the native plugin form and owner-scoped mutations. Agent configuration offers portable template selectors before an account is connected; the Agent welcome page links to the personal connection form.

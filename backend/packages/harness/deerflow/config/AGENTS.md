@@ -113,4 +113,4 @@ Directory manager_role defaults agent-directory-manager and must differ from eve
 
 Directory bootstrap checks AuthAppConfig.oidc.enabled and its provider map, rejects DEER_FLOW_AUTH_DISABLED, and requires a durable DB plus configured fail-closed authorization. AuthAppConfig has no top-level enabled field; retain typed-model bootstrap coverage.
 
-DirectoryProfile.mcp_service_auth defaults empty and contains only operator-approved MCP server names, never credentials. Runtime credential resolution requires exact enabled immutable directory provenance plus live identity role; the ordinary MCP user map remains preferred.
+DirectoryProfile rejects the removed mcp_service_auth setting. Remove legacy directory service-auth entries before upgrading. Role assignment grants Agent access only; portable template selections bind the invoking user's personal MCP installation.
