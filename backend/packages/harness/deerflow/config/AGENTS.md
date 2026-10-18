@@ -112,3 +112,5 @@ and admin-email rules remain authoritative. Request the `phone` scope explicitly
 Directory manager_role defaults agent-directory-manager and must differ from every assignable profile role; only the identity operator assigns managers.
 
 Directory bootstrap checks AuthAppConfig.oidc.enabled and its provider map, rejects DEER_FLOW_AUTH_DISABLED, and requires a durable DB plus configured fail-closed authorization. AuthAppConfig has no top-level enabled field; retain typed-model bootstrap coverage.
+
+DirectoryProfile.mcp_service_auth defaults empty and contains only operator-approved MCP server names, never credentials. Runtime credential resolution requires exact enabled immutable directory provenance plus live identity role; the ordinary MCP user map remains preferred.

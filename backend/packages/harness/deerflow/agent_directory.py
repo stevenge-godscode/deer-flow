@@ -184,6 +184,21 @@ class AgentDirectory:
             return False
         return self.config.realm + "/" + self.config.profiles[record["profile"]].role in self.roles(user_id)
 
+    def authorizes_service_auth(self, reference, user_id, server_name):
+        """Explicit shared-service authentication for an exact live definition.
+
+        The caller supplies only a server-owned immutable reference. Credentials
+        stay in the operator's MCP server config, never in this catalog.
+        """
+        from deerflow.config.definition_snapshot import validate_agent_definition_reference
+
+        try:
+            ref = validate_agent_definition_reference(reference)
+        except (ValueError, TypeError):
+            return False
+        record = self.state()["agents"].get(ref["name"])
+        return bool(record and record["enabled"] and record["definition"]["digest"] == ref["digest"] and server_name in self.config.profiles[record["profile"]].mcp_service_auth and self.allowed(ref["name"], user_id))
+
     def snapshot(self, name, user_id):
         record = self.state()["agents"].get(name)
         if record is None or not self.allowed(name, user_id):

@@ -383,3 +383,31 @@ def test_directory_bootstrap_uses_real_native_auth_config(directory, monkeypatch
             get_directory(private)
     else:
         assert get_directory(private).config.provider == "realm"
+
+
+def test_service_auth_needs_operator_server_opt_in_exact_ref_and_live_role(directory):
+    d, identity, _ = directory
+    publish(d)
+    identity.members.add("alice-sub")
+    ref = {"schema": "deerflow.agent-definition-ref/v1", "name": "shared-v1", "digest": d.snapshot("shared-v1", "alice").digest}
+    assert not d.authorizes_service_auth(ref, "alice", "cmdb-readonly")
+    d.config.profiles["cmdb"].mcp_service_auth = ["cmdb-readonly"]
+    assert d.authorizes_service_auth(ref, "alice", "cmdb-readonly")
+    assert not d.authorizes_service_auth(ref, "bob", "cmdb-readonly")
+    assert not d.authorizes_service_auth(ref, "alice", "other")
+    assert not d.authorizes_service_auth({**ref, "digest": "0" * 64}, "alice", "cmdb-readonly")
+    assert not d.authorizes_service_auth({**ref, "name": "private"}, "alice", "cmdb-readonly")
+    identity.members.clear()
+    assert not d.authorizes_service_auth(ref, "alice", "cmdb-readonly")
+    identity.members.add("alice-sub")
+    identity.fail = True
+    assert not d.authorizes_service_auth(ref, "alice", "cmdb-readonly")
+    identity.fail = False
+    d.set_enabled("shared-v1", False, actor="admin", expected_revision=1)
+    assert not d.authorizes_service_auth(ref, "alice", "cmdb-readonly")
+
+
+@pytest.mark.parametrize("ref", [None, {}, {"schema": "wrong", "name": "shared-v1", "digest": "0" * 64}])
+def test_service_auth_rejects_missing_or_malformed_reference(directory, ref):
+    d, _, _ = directory
+    assert not d.authorizes_service_auth(ref, "alice", "cmdb-readonly")

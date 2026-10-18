@@ -2020,3 +2020,5 @@ storage does not remove this shared-filesystem requirement. No personal Agent is
 published implicitly. Publication copies only its immutable definition and exact
 single-file pinned skill bodies. New contents need a new version ID. Disable or
 revoke access to roll back a publication; retained audit and private chats remain.
+
+Published Agent access profiles can opt approved MCP servers into operator-managed service authentication (`mcp_service_auth`). The credential stays in the server configuration; an assigned ordinary account can call through an exact enabled shared definition without a personal credential copy. Existing personal credentials remain preferred. Revocation, version disable or identity failure stops service authentication on the next tool call.

@@ -9,6 +9,7 @@ class DirectoryProfile(BaseModel):
     label: str = Field(min_length=1, max_length=100)
     role: str = Field(pattern=r"^agent-directory-[a-z0-9-]+$")
     permission_ids: list[str] = Field(min_length=1, max_length=100)
+    mcp_service_auth: list[str] = Field(default_factory=list, max_length=100, description="Operator-approved MCP servers whose service header may authenticate this published profile")
 
 
 class DirectoryConfig(BaseModel):
