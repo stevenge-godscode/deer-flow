@@ -397,3 +397,6 @@ See `docs/` directory for detailed documentation:
 - [plan_mode_usage.md](docs/plan_mode_usage.md) - Plan mode with TodoList
 
 Scope: `packages/harness/deerflow/authz/AGENTS.md`.
+
+
+The optional native published Agent directory is owned by `deerflow/agent_directory.py`. It wraps private AgentStore reads, reserves published names across all owners, and never changes private ownership. The session-only administrator router `/api/agent-directory` fences mutations by actor and catalog revision. Identity roles remain authoritative; publication/version enable and audit use an atomic, fsynced private filesystem document under a cross-process POSIX lock. Preserve source/skill digest validation, realm/provider identity binding and live tool revocation. See README configuration and shared-volume requirements.

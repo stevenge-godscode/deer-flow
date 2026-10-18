@@ -920,6 +920,9 @@ This gateway provides runtime endpoints for agent runs plus custom endpoints for
 
     # Agents API is mounted at /api/agents
     app.include_router(agents.router)
+    from app.gateway.routers import agent_directory
+
+    app.include_router(agent_directory.router)
     # Projects API is mounted at /api/projects
     app.include_router(projects.router)
     # Project document shelf API is mounted at /api/projects/{id}/documents

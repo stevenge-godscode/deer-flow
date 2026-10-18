@@ -177,3 +177,6 @@ The post-admission metadata barrier must recheck that exact owner/incarnation;
 errors, timeout and child-task cancellation stop startup. Legacy owned NULL
 incarnations are initialized atomically without changing timestamps or content.
 No foreign/unowned row is reassigned on this path. See SCOPED_AUTHORIZATION.md.
+
+
+`agent_directory.py` is session-only administrator management. Authorize before loading any catalog, account or source data; PAT/internal callers are denied. Mutations require X-Expected-User-Id and expected_revision. Never return identity credential/user response payloads, infer account linking from email, or turn a failed identity read into a successful empty membership list.

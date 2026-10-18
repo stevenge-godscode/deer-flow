@@ -20,7 +20,7 @@
 # ============================================================================
 # Bump this number when the config schema changes.
 # Run `make config-upgrade` to merge new fields into your local config.yaml.
-config_version: 46
+config_version: 47
 
 # Optional per-model request pacing (inside a models[] entry):
 # request_admission:
@@ -3020,3 +3020,19 @@ authorization:
 #                                         # also match a host-owned table name.
 #     config:
 #       label: example                    # extension-private values, if any
+
+# Share only immutable Agent definitions and pinned skill bodies. The root must
+# be a private persistent shared directory across every Gateway/worker replica.
+# Identity credentials are realm-scoped service-user AccessKeys mounted as a
+# Secret; never use an application credential or a built-in administrator.
+agent_directory:
+  enabled: false
+  # origin: https://identity.example.com
+  # realm: example
+  # provider: example
+  # credential_file: /run/secrets/agent-directory/credentials.json
+  # profiles:
+  #   cmdb-read:
+  #     label: CMDB read only
+  #     role: agent-directory-cmdb-read
+  #     permission_ids: [cmdb-tools-read, cmdb-skills-read]

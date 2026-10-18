@@ -371,6 +371,11 @@ def _source_signature(storage: SkillStorage, scope: str) -> str:
             "extensions": _extensions_state(),
             "user": storage._read_skill_states(),
         }
+        from deerflow.agent_directory import get_directory
+
+        directory = get_directory()
+        if directory is not None:
+            state["agent_directory"] = directory.signature(storage.user_id)
     else:  # pragma: no cover - internal invariant
         raise ValueError(f"Unknown skill projection scope: {scope}")
     digest.update(json.dumps(state, sort_keys=True, separators=(",", ":")).encode())

@@ -105,3 +105,6 @@ OIDC `allow_verified_phone` defaults to false. Enabling it allows ordinary
 email-less JIT only from `OIDCIdentity.verified_phone`, extracted from the verified
 ID token (not merged userinfo). Existing subject bindings, domain restrictions,
 and admin-email rules remain authoritative. Request the `phone` scope explicitly.
+
+
+`agent_directory` is typed by DirectoryConfig and defaults disabled. Approved profiles bind a distinct `agent-directory-*` identity role to exact permission IDs; only the operator defines profiles/identity origin/realm/provider/Secret path. The default catalog root is private persistent shared state, not an executable source overlay. Enabled directory resolution additionally requires durable authenticated users and fail-closed resource authorization.

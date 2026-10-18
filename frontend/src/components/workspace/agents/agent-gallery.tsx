@@ -1,16 +1,19 @@
 "use client";
 
 import { BotIcon, PlusIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { useAgents } from "@/core/agents";
+import { useAuth } from "@/core/auth/AuthProvider";
 import { useI18n } from "@/core/i18n/hooks";
 
 import { AgentCard } from "./agent-card";
 
 export function AgentGallery() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const { user } = useAuth();
   const { agents, isLoading } = useAgents();
   const router = useRouter();
 
@@ -28,10 +31,21 @@ export function AgentGallery() {
             {t.agents.description}
           </p>
         </div>
-        <Button onClick={handleNewAgent}>
-          <PlusIcon className="mr-1.5 h-4 w-4" />
-          {t.agents.newAgent}
-        </Button>
+        <div className="flex gap-2">
+          {user?.system_role === "admin" && (
+            <Button variant="outline" asChild>
+              <Link href="/workspace/agent-directory">
+                {locale === "zh-CN"
+                  ? "智能体与账号管理"
+                  : "Agent and account management"}
+              </Link>
+            </Button>
+          )}
+          <Button onClick={handleNewAgent}>
+            <PlusIcon className="mr-1.5 h-4 w-4" />
+            {t.agents.newAgent}
+          </Button>
+        </div>
       </div>
 
       {/* Content */}

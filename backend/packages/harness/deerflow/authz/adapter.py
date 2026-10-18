@@ -17,6 +17,7 @@ with consistent ``default_role`` and ``attributes`` semantics.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 
 from deerflow.authz.principal import build_principal_from_context
@@ -117,6 +118,17 @@ class GuardrailAuthorizationAdapter:
             metadata=d.metadata,
         )
 
+    @staticmethod
+    def _directory_decision(request: GuardrailRequest) -> GuardrailDecision | None:
+        if not request.agent_name:
+            return None
+        from deerflow.agent_directory import get_directory
+
+        directory = get_directory()
+        if directory is not None and not directory.allowed(request.agent_name, request.user_id):
+            return GuardrailDecision(allow=False, reasons=[GuardrailReason(code="authz.agent_directory_revoked")])
+        return None
+
     def evaluate(self, request: GuardrailRequest) -> GuardrailDecision:
         """Synchronous evaluation: delegate to ``provider.authorize``.
 
@@ -128,6 +140,8 @@ class GuardrailAuthorizationAdapter:
         here would duplicate that logic and risk divergent behavior between
         the two layers.
         """
+        if directory_decision := self._directory_decision(request):
+            return directory_decision
         if infrastructure_decision := self._infrastructure_decision(request):
             return infrastructure_decision
         decision = self._provider.authorize(self._to_authz(request))
@@ -138,6 +152,8 @@ class GuardrailAuthorizationAdapter:
 
         See :meth:`evaluate` for exception-propagation rationale.
         """
+        if directory_decision := await asyncio.to_thread(self._directory_decision, request):
+            return directory_decision
         if infrastructure_decision := self._infrastructure_decision(request):
             return infrastructure_decision
         decision = await self._provider.aauthorize(self._to_authz(request))

@@ -1995,3 +1995,28 @@ provider configuration explicitly enables `allow_verified_phone` and requests th
 `phone` scope. Only a strictly verified phone claim from the signed ID token is
 accepted; userinfo fields, phone strings, and display names cannot associate
 accounts. Existing `(provider, subject)` identities retain their user and data.
+
+### Published Agent and account management
+
+Administrators can open **Agents → Agent and account management** to publish an
+immutable shared version, select an approved business role, assign/revoke that
+role for an existing identity-backed account, enable/disable a version and view
+audit history. Ordinary accounts see only assigned versions in the existing
+Agent gallery. Chats, files, credentials, projects and memory stay private.
+
+Configure `agent_directory` with an HTTPS identity origin, exact OIDC provider and
+realm, a mounted service-user AccessKey Secret and approved role/permission
+profiles. Provision enabled `agent-directory-*` roles and bind only their exact
+approved resource/action permissions in the identity service. Never mount a
+built-in/global administrator or application API credential. Role membership and
+account active state are read live for listing, admission and every protected
+tool call, including discovery infrastructure; failures deny shared access.
+
+Directory metadata/audit and immutable skill sources live in
+`{DEER_FLOW_HOME}/agent-directory` by default. Every Gateway and graph worker must
+use the same private persistent filesystem and POSIX advisory locks; keep it out
+of sandbox mounts and backup it alongside the application volume. SQL Agent
+storage does not remove this shared-filesystem requirement. No personal Agent is
+published implicitly. Publication copies only its immutable definition and exact
+single-file pinned skill bodies. New contents need a new version ID. Disable or
+revoke access to roll back a publication; retained audit and private chats remain.

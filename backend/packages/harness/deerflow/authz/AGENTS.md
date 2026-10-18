@@ -24,3 +24,6 @@ through proof binding. Thread startup pins/rechecks owner plus incarnation,
 including owned-only atomic initialization of legacy NULL incarnations; it never
 uses the legacy unscoped ownership-claim path. Verification cancellation fails
 closed. Keep SCOPED_AUTHORIZATION.md and two-stage admission regressions current.
+
+
+GuardrailAuthorizationAdapter checks live published-directory access before both ordinary provider checks and infrastructure allow shortcuts. Run admission and worker definition resolution use the same directory-aware AgentStore. Never skip the directory decision on async, resumed or tool-discovery paths; identity or catalog failure must not allow protected execution.
