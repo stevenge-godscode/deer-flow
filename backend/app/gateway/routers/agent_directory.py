@@ -85,7 +85,8 @@ async def access(request: Request):
 
 @router.get("")
 async def dashboard(request: Request):
-    await _admin(request)
+    actor = await _admin(request)
+    administrator = (await get_current_user_from_request(request)).system_role == "admin"
 
     def read():
         from deerflow.config.app_config import get_app_config
@@ -114,7 +115,7 @@ async def dashboard(request: Request):
             "accounts": accounts,
             "accounts_truncated": len(users) > 500,
             "agents": [{"name": n, "display_name": r["definition"]["config"].get("display_name"), "profile": r["profile"], "enabled": r["enabled"], "digest": r["definition"]["digest"]} for n, r in state["agents"].items()],
-            "sources": [{"owner": owner, "name": a.name, "display_name": a.display_name} for owner, a in directory.private.list_all() if a.immutable_definition],
+            "sources": [{"owner": owner, "name": a.name, "display_name": a.display_name} for owner, a in (directory.private.list_all() if administrator else [(actor, a) for a in directory.private.list(user_id=actor)])],
             "audit": state["audit"][-100:],
         }
 
@@ -124,6 +125,9 @@ async def dashboard(request: Request):
 @router.post("/versions")
 async def publish(body: Publication, request: Request, x_expected_user_id: Annotated[str, Header()]):
     actor = await _admin(request, x_expected_user_id)
+    user = await get_current_user_from_request(request)
+    if user.system_role != "admin" and body.source_owner != actor:
+        raise HTTPException(403, "Publish an Agent from your own workspace")
     return {"revision": await _run(lambda: _directory().publish(body.name, body.source_owner, body.source_name, body.profile, actor=actor, expected_revision=body.expected_revision))}
 
 

@@ -18,6 +18,14 @@ def set_personal_mcp_admin_checker(checker: PersonalMcpAdminChecker | None) -> P
 
 
 def requires_admin(server: McpServerConfig) -> bool:
+    from deerflow.mcp.templates import template_id, validate_definition
+
+    if template_id(server):
+        try:
+            validate_definition(server.model_dump(), materialized=True)
+            return False
+        except (ValueError, OSError):
+            return True
     # Only definitions admitted under the ordinary-user policy carry True.
     # Missing markers, including legacy personal files, require authority too.
     return (server.model_extra or {}).get("personal_public_network") is not True

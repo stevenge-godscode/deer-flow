@@ -2015,7 +2015,7 @@ accounts. Existing `(provider, subject)` identities retain their user and data.
 
 ### Published Agent and account management
 
-Administrators can open **Agents → Agent and account management** to publish an
+Directory managers can create and edit their own Agents in the native Agent workspace, then open **Agent publication and assignment** to publish an
 immutable shared version, select an approved business role, assign/revoke that
 role for an existing identity-backed account, enable/disable a version and view
 audit history. Ordinary accounts see only assigned versions in the existing
@@ -2034,8 +2034,15 @@ Directory metadata/audit and immutable skill sources live in
 use the same private persistent filesystem and POSIX advisory locks; keep it out
 of sandbox mounts and backup it alongside the application volume. SQL Agent
 storage does not remove this shared-filesystem requirement. No personal Agent is
-published implicitly. Publication copies only its immutable definition and exact
-single-file pinned skill bodies. New contents need a new version ID. Disable or
+published implicitly. Publication creates an immutable snapshot of the selected native draft and exact
+single-file skill bodies. Select skills and MCP plugins explicitly before publishing. New contents need a new version ID. Disable or
 revoke access to roll back a publication; retained audit and private chats remain.
 
-Published Agent access profiles can opt approved MCP servers into operator-managed service authentication (`mcp_service_auth`). The credential stays in the server configuration; an assigned ordinary account can call through an exact enabled shared definition without a personal credential copy. Existing personal credentials remain preferred. Revocation, version disable or identity failure stops service authentication on the next tool call.
+Business roles grant use of published Agents; they do not supply a source account.
+Users configure their own approved connections in **Capabilities → Plugins**.
+An operator-defined connection template fixes the gateway endpoint and exposes only
+its credential fields through the existing plugin form and personal MCP store.
+Published Agents can select `template:<id>` so each user resolves their own connection.
+Missing, changed, disabled or removed connections fail closed. The former directory
+`mcp_service_auth` fallback is removed; remove that configuration before upgrading.
+See [personal connections](docs/personal-connections-23.md) for deployment boundaries.

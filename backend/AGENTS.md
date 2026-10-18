@@ -398,4 +398,4 @@ See `docs/` directory for detailed documentation:
 
 Scope: `packages/harness/deerflow/authz/AGENTS.md`.
 
-Personal MCP ownership and connection revision checks are documented in docs/personal-connections-23.md. Retain live published-directory and background capability admission; a personal-config failure must not publish deployment tools as fallback. This branch has no accepted CMDB/Guance source identity integration.
+Personal MCP ownership and connection revision checks are documented in docs/personal-connections-23.md. Retain live published-directory and background capability admission; a personal-config failure must not publish deployment tools as fallback. Approved connection templates use the same personal store and native capability form; source identity enforcement belongs in the source adapter. See docs/personal-connections-23.md for migration and validation limits.

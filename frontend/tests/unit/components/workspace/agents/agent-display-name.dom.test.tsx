@@ -24,6 +24,9 @@ rs.mock("@/core/subagents", () => ({
   useSubagents: () => ({ subagents: [] }),
 }));
 rs.mock("@/core/capabilities/hooks", () => ({
+  useCapabilityCatalog: () => ({
+    data: [{ id: "cmdb", adapter: "template", name: { "en-US": "CMDB" } }],
+  }),
   useCapabilityInstallations: () => ({
     data: { items: [], can_manage: false },
     isLoading: false,
@@ -196,4 +199,29 @@ describe("capability selection update isolation", () => {
     expect(request).not.toHaveProperty("mcp_plugins");
     expect(request).not.toHaveProperty("skills");
   });
+});
+
+it("offers a portable approved connection before the manager connects an account", () => {
+  render(
+    <AgentSettingsDialog
+      agent={{ ...agent, mcp_plugins: [] }}
+      open
+      onOpenChange={rs.fn()}
+    />,
+  );
+  expect(
+    screen.getByLabelText("CMDB (Each user connects their account)"),
+  ).toBeTruthy();
+});
+
+it("links a published Agent to the invoking user's own connection form", () => {
+  render(
+    <AgentWelcome
+      agent={{ ...agent, mcp_plugins: ["template:cmdb"] }}
+      agentName="reviewer"
+    />,
+  );
+  expect(screen.getByRole("link").getAttribute("href")).toBe(
+    "/workspace/capabilities?tab=plugins&plugin=cmdb",
+  );
 });

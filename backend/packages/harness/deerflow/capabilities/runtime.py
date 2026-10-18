@@ -34,5 +34,12 @@ def filter_mcp_plugins(tools: list[Any], selected: list[str] | None, config: Ext
         return tools
     ambiguous = ambiguous_installation_ids({name: server.model_dump() for name, server in config.mcp_servers.items()})
     wanted = set(selected) - ambiguous
-    servers = {name for name, server in config.get_enabled_mcp_servers().items() if installation_id(name, server.model_dump()) in wanted}
+    from deerflow.mcp.templates import template_id
+
+    templates = {item.removeprefix("template:") for item in wanted if item.startswith("template:")}
+    candidates = {identity: [name for name, server in config.get_enabled_mcp_servers().items() if name.startswith("personal_") and template_id(server) == identity] for identity in templates}
+    # Never choose between two accounts implicitly. Exactly one enabled personal
+    # installation is required for a portable, administrator-published selection.
+    portable = {names[0] for names in candidates.values() if len(names) == 1}
+    servers = portable | {name for name, server in config.get_enabled_mcp_servers().items() if installation_id(name, server.model_dump()) in wanted}
     return [tool for tool in tools if not is_mcp_tool(tool) or (get_mcp_source(tool) or {}).get("server_name") in servers]

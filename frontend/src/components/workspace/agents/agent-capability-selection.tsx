@@ -1,7 +1,10 @@
 "use client";
 
 import { capabilityCopy } from "@/core/capabilities/copy";
-import { useCapabilityInstallations } from "@/core/capabilities/hooks";
+import {
+  useCapabilityCatalog,
+  useCapabilityInstallations,
+} from "@/core/capabilities/hooks";
 import { useI18n } from "@/core/i18n/hooks";
 
 function Selection({
@@ -16,6 +19,7 @@ function Selection({
   const { locale, t } = useI18n();
   const copy = capabilityCopy(locale);
   const query = useCapabilityInstallations(adapter);
+  const catalog = useCapabilityCatalog();
   const items = (query.data?.items ?? []).filter(
     (item) => item.installed && item.selectable !== false,
   );
@@ -25,6 +29,15 @@ function Selection({
       item.name,
     ]),
   );
+  if (adapter === "mcp") {
+    for (const plugin of catalog.data ?? []) {
+      if (plugin.adapter === "template")
+        options.set(
+          `template:${plugin.id}`,
+          `${plugin.name[locale] ?? plugin.name["en-US"]} (${locale === "zh-CN" ? "每位使用者自行连接" : "Each user connects their account"})`,
+        );
+    }
+  }
   for (const id of value ?? [])
     if (!options.has(id)) options.set(id, `${id} (${copy.unavailable})`);
   return (

@@ -44,7 +44,7 @@ async def install(body: InstallRequest, request: Request, config: AppConfig = De
     manifest = next((entry for entry in entries if entry.id == body.plugin_id), None)
     if manifest is None:
         raise HTTPException(404, "Plugin not found")
-    if body.scope == "user" and manifest.adapter not in {"mcp", "business"}:
+    if body.scope == "user" and manifest.adapter not in {"mcp", "business", "template"}:
         await require_admin_user(request, detail="Admin privileges required to install this capability.")
     context = AdapterContext(request, config, user_id, body.scope)
     await registry.get(manifest.adapter).install(context, manifest, body.name, body.configuration)

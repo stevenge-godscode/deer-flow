@@ -48,9 +48,13 @@ def load_user_mcp_config(user_id: str) -> ExtensionsConfig:
     """Read literal user values; personal files cannot resolve host $ENV secrets."""
     raw = read_user_mcp_config(user_id)
     servers = {}
+    from deerflow.mcp.templates import materialize, template_id
+
     for name, definition in raw.get("mcpServers", {}).items():
+        if template_id(definition):
+            definition = materialize(definition, user_id)
         runtime_name = personal_server_name(user_id, name, definition)
-        servers[runtime_name] = {**definition, "tool_name_prefix": True}
+        servers[runtime_name] = {**definition, "tool_name_prefix": False if template_id(definition) else True}
     return ExtensionsConfig.model_validate({"mcpServers": servers})
 
 
@@ -69,7 +73,7 @@ def load_user_mcp_config_if_changed(user_id: str, cached: PersonalMcpConfigSnaps
     path = user_mcp_config_path(user_id)
     for _ in range(3):
         signature = _file_signature(path)
-        if cached is not None and cached.path == path and cached.signature == signature:
+        if cached is not None and cached.path == path and cached.signature == signature and not any((server.model_extra or {}).get("personal_template") for server in cached.config.mcp_servers.values()):
             return cached
         config = load_user_mcp_config(user_id)
         if _file_signature(path) == signature:

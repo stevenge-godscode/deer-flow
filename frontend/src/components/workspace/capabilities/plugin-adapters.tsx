@@ -33,7 +33,7 @@ function ConfiguredPluginSettings({
     event.preventDefault();
     try {
       let configuration: Record<string, unknown>;
-      if (plugin.adapter === "business") {
+      if (plugin.adapter === "business" || plugin.adapter === "template") {
         configuration = Object.fromEntries(
           Object.entries(fields).filter(([key]) => key !== "name"),
         );
@@ -122,5 +122,6 @@ export const pluginSettingsAdapters: Record<
 > = {
   mcp: ConfiguredPluginSettings,
   business: ConfiguredPluginSettings,
+  template: ConfiguredPluginSettings,
   lark: () => <LarkSettings />,
 };

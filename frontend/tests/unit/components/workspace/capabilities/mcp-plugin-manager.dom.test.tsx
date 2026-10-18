@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MCPPluginManager } from "@/components/workspace/capabilities/mcp-plugin-manager";
 
 const mcpMockState = rs.hoisted(() => ({
+  push: rs.fn(),
   locale: "en-US",
   isPending: false,
   isLoading: false,
@@ -12,6 +13,10 @@ const mcpMockState = rs.hoisted(() => ({
   updateIsPending: false,
   updateMutate: rs.fn(),
   servers: {} as Record<string, unknown>,
+}));
+
+rs.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mcpMockState.push }),
 }));
 
 // A server carrying config this page never renders: it must survive a write
@@ -165,6 +170,7 @@ afterEach(() => {
   mcpMockState.mutate.mockReset();
   mcpMockState.updateMutate.mockReset();
   mcpMockState.servers = {};
+  mcpMockState.push.mockReset();
   cleanup();
 });
 
@@ -476,4 +482,45 @@ describe("MCP controls identify their ownership", () => {
       }
     },
   );
+});
+
+describe("approved personal connection editing", () => {
+  it("opens the native account form without exposing raw connection headers", () => {
+    setServers({
+      cmdb: {
+        enabled: true,
+        headers: { "X-CMDB-Password": "***" },
+        capability: { plugin_id: "cmdb" },
+      },
+    });
+    render(
+      <MCPPluginManager
+        definitions={[
+          {
+            schema_version: 1,
+            icon: null,
+            aliases: [],
+            auth_methods: ["password"],
+            contributions: ["tools"],
+            id: "cmdb",
+            version: "1",
+            kind: "mcp",
+            source: "https://example.com",
+            adapter: "template",
+            category: "business",
+            name: { "en-US": "CMDB" },
+            description: { "en-US": "Personal account" },
+            setup: { "en-US": "Connect your account" },
+            config_schema: { type: "object", properties: {} },
+          },
+        ]}
+      />,
+    );
+    openEditDialog("cmdb");
+    expect(mcpMockState.push).toHaveBeenCalledWith(
+      "/workspace/capabilities?tab=plugins&plugin=cmdb",
+    );
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(mcpMockState.updateMutate).not.toHaveBeenCalled();
+  });
 });

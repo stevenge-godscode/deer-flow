@@ -45,6 +45,10 @@ def load_catalog(path: Path | None = None) -> list[PluginManifest]:
     """An operator may supply another manifest file; never load executable code."""
     source = path or Path(__file__).with_name("builtin.json")
     items = [PluginManifest.model_validate(item) for item in json.loads(source.read_text(encoding="utf-8"))]
+    if path is None:
+        from deerflow.mcp.templates import load_templates
+
+        items.extend(PluginManifest.model_validate(item.manifest) for item in load_templates().values())
     ids = [item.id for item in items]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate plugin identifiers in catalog")

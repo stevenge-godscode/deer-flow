@@ -203,4 +203,4 @@ Genesis business branding is isolated in branding/, frontend/src/core/branding/ 
 
 Directory entry visibility follows the actor-scoped live self-capability query, not system_role alone; the separate identity manager role grants no other administrator surface. Server APIs recheck every mutation.
 
-Personal MCP configuration under Capability Center uses account-scoped query keys and owner-only API calls; shared MCP controls remain administrator-only. The Issue 23 source candidate is not a deployed CMDB/Guance personal-connection feature.
+Personal MCP configuration under Capability Center uses account-scoped query keys and owner-only API calls; shared MCP controls remain administrator-only. Approved template adapters reuse the native plugin form and owner-scoped mutations. Agent configuration offers portable template selectors before an account is connected; the Agent welcome page links to the personal connection form.

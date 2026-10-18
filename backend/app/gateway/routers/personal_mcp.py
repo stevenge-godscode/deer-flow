@@ -36,6 +36,14 @@ def _read_personal_config(user_id: str) -> dict:
 def _validate_personal_server(server: mcp.McpServerConfigResponse, *, admin: bool) -> None:
     # A personal store must not grant ordinary users the deployment operator's
     # ability to launch arbitrary host packages or query internal services.
+    from deerflow.mcp.templates import template_id, validate_definition
+
+    if template_id(server.model_dump()):
+        try:
+            validate_definition(server.model_dump())
+        except ValueError:
+            raise HTTPException(422, "Invalid approved personal connection; use its configuration form") from None
+        return
     if not admin:
         from deerflow.capabilities.business import is_bundled_connection
 
@@ -64,7 +72,7 @@ def _mutate(user_id: str, operation: Literal["create", "update", "delete", "stat
                 definition = incoming.model_dump()
                 metadata = definition.get("capability")
                 definition["capability"] = {**(metadata if isinstance(metadata, dict) else {}), "id": str(uuid4())}
-                definition["personal_public_network"] = not admin
+                definition["personal_public_network"] = not admin and not definition.get("personal_template")
                 servers[name] = definition
         else:
             name = body if operation == "delete" else body.server_name
@@ -75,11 +83,11 @@ def _mutate(user_id: str, operation: Literal["create", "update", "delete", "stat
             elif operation == "update":
                 merged = mcp._merge_preserving_secrets(body.server, mcp._mcp_server_response_from_raw(name, servers[name]), preserve_omitted_fields=False)
                 _validate_personal_server(merged, admin=admin)
-                servers[name] = {**merged.model_dump(), "personal_public_network": not admin}
+                servers[name] = {**merged.model_dump(), "personal_public_network": not admin and not merged.model_dump().get("personal_template")}
             else:
                 if body.enabled:
                     _validate_personal_server(mcp._mcp_server_response_from_raw(name, servers[name]), admin=admin)
-                    servers[name]["personal_public_network"] = not admin
+                    servers[name]["personal_public_network"] = not admin and not servers[name].get("personal_template")
                 servers[name]["enabled"] = body.enabled
         candidate = {"mcpServers": servers}
         try:

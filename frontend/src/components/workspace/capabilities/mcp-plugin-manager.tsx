@@ -1,6 +1,7 @@
 "use client";
 
 import { PencilIcon, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,7 @@ function MCPServerList({
   error?: Error | null;
 }) {
   const { t, locale } = useI18n();
+  const router = useRouter();
   const labels = capabilityCopy(locale);
   const scopeLabel =
     scope === "deployment" ? labels.platformTitle : labels.personalTitle;
@@ -146,6 +148,20 @@ function MCPServerList({
   }
 
   function openEditEditor(name: string, config: MCPServerConfig) {
+    const metadata = config.capability;
+    const pluginId =
+      metadata && typeof metadata === "object" && "plugin_id" in metadata
+        ? metadata.plugin_id
+        : null;
+    const template = definitions.find(
+      (item) => item.id === pluginId && item.adapter === "template",
+    );
+    if (scope === "user" && template) {
+      router.push(
+        `/workspace/capabilities?tab=plugins&plugin=${encodeURIComponent(template.id)}`,
+      );
+      return;
+    }
     setDraftIcon(readPluginIcon(config) ?? null);
     setIconBusy(false);
     setDefinition(

@@ -158,6 +158,44 @@ class BusinessAdapter(MCPAdapter):
         await super().install(context, manifest, name, definition)
 
 
+class TemplateAdapter(MCPAdapter):
+    """Approved transport, user-owned credential fields and existing MCP lifecycle."""
+
+    async def list_installations(self, context: AdapterContext) -> list[CapabilityInstallation]:
+        from deerflow.mcp.templates import load_templates
+
+        templates = await asyncio.to_thread(load_templates)
+        return [item for item in await super().list_installations(context) if item.plugin_id in templates]
+
+    async def install(self, context: AdapterContext, manifest: PluginManifest, name: str, configuration: dict[str, Any]) -> None:
+        from app.gateway.routers import personal_mcp
+        from deerflow.mcp.templates import connection_definition
+        from deerflow.mcp.user_config import read_user_mcp_config
+
+        if context.scope != "user":
+            raise HTTPException(422, "Connect this account under My plugins")
+        if name != manifest.id:
+            raise HTTPException(422, "This connection uses its catalog name")
+        try:
+            definition = await asyncio.to_thread(connection_definition, manifest.id, configuration)
+            current = await asyncio.to_thread(read_user_mcp_config, context.user_id)
+        except (ValueError, OSError):
+            raise HTTPException(422, "Complete only the displayed account fields; the approved connection must be available") from None
+        existing = current.get("mcpServers", {}).get(name)
+        if existing and existing.get("personal_template") != manifest.id:
+            raise HTTPException(409, "Another connection already uses this name")
+        definition["capability"] = {
+            "id": existing["capability"]["id"] if existing else str(uuid4()),
+            "plugin_id": manifest.id,
+            "version": manifest.version,
+        }
+        server = mcp.McpServerConfigResponse.model_validate(definition)
+        if existing:
+            await personal_mcp.update_server(context.request, mcp.McpServerConfigUpdateRequest(server_name=name, server=server))
+        else:
+            await personal_mcp.create_servers(context.request, mcp.McpConfigUpdateRequest(mcp_servers={name: server}))
+
+
 class LarkAdapter:
     async def list_installations(self, context: AdapterContext) -> list[CapabilityInstallation]:
         status = await asyncio.to_thread(get_lark_integration_status, context.user_id, context.config)
@@ -221,6 +259,7 @@ class AdapterRegistry:
 
 registry = AdapterRegistry()
 registry.register("mcp", MCPAdapter())
+registry.register("template", TemplateAdapter())
 registry.register("business", BusinessAdapter())
 registry.register("lark", LarkAdapter())
 registry.register("skills", SkillAdapter())
@@ -232,6 +271,6 @@ async def list_installations(adapter: str, request: Request, config: AppConfig, 
         user_id = str((await get_current_user_from_request(request)).id)
     context = AdapterContext(request, config, user_id, "user" if scope == "user" else "deployment")
     items = await registry.get(adapter).list_installations(context)
-    if scope == "all" and adapter in {"mcp", "business"}:
+    if scope == "all" and adapter in {"mcp", "business", "template"}:
         items += await registry.get(adapter).list_installations(AdapterContext(request, config, user_id, "user"))
     return InstallationList(items=items, can_manage=scope == "user" or await is_admin_user(request))
