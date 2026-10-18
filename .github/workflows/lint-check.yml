@@ -4,7 +4,8 @@ on:
   push:
     branches: [ 'main', '*-dev' ]
   pull_request:
-    branches: [ '*' ]
+    # Stacked feature bases use codex/... names; '*' excludes '/' and skips lint.
+    branches: [ '**' ]
 
 permissions:
   contents: read
