@@ -386,16 +386,10 @@ For models with `supports_vision: true`:
 
 ## Documentation
 
-See `docs/` directory for detailed documentation:
-- [CONFIGURATION.md](docs/CONFIGURATION.md) - Configuration options
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture details
-- [API.md](docs/API.md) - API reference
-- [SETUP.md](docs/SETUP.md) - Setup guide
-- [FILE_UPLOAD.md](docs/FILE_UPLOAD.md) - File upload feature
-- [PATH_EXAMPLES.md](docs/PATH_EXAMPLES.md) - Path types and usage
-- [summarization.md](docs/summarization.md) - Context summarization
-- [plan_mode_usage.md](docs/plan_mode_usage.md) - Plan mode with TodoList
+Reference material lives in `docs/`; authorization guidance is in
+`packages/harness/deerflow/authz/AGENTS.md`.
 
-Scope: `packages/harness/deerflow/authz/AGENTS.md`.
-
-Personal MCP ownership and connection revision checks are documented in docs/personal-connections-23.md. Retain live published-directory and background capability admission; a personal-config failure must not publish deployment tools as fallback. Approved connection templates use the same personal store and native capability form; source identity enforcement belongs in the source adapter. See docs/personal-connections-23.md for migration and validation limits.
+Personal MCP: see ../docs/personal-connections-23.md. Preserve owner/revision
+checks, live directory admission and background checks. Never fall back to
+shared tools after a personal configuration failure. Templates reuse native
+forms/storage; source identity enforcement belongs in the source adapter.
