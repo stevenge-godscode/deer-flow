@@ -9,3 +9,5 @@ Scope: immutable shared Agent versions, identity business-role assignments, vers
 Role state comes from the identity service and is checked at listing, admission, worker resolution and each protected tool call, including discovery infrastructure. Directory failures deny shared access. Publish only verified single-file skill bodies, immutable source definitions and new version IDs. No personal resource or credential copies.
 
 Rollback by disabling the version/revoking the managed role and restoring retained images/config. Keep catalog audit, business history and target-private backups. Source/tests, immutable CI image identity, runtime UI and assigned/unassigned/revoked execution evidence are required before rollout.
+
+Exact source CI reuses the repository's accepted `issue-*-source-check-dev` verification-ref convention. `issue-21-agent-source-check-dev` points to the exact implementation head and owns no independent changes/PR. Native candidate gates accept successful push checks of that head, not pull-request merge-ref metadata. The implementation branch remains codex/issue-21-agent-access-management.

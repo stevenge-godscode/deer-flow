@@ -199,5 +199,4 @@ The default and custom-agent chat headers share BrowserTuiTrigger. Browser TUI l
 
 Genesis business branding is isolated in branding/, frontend/src/core/branding/ and the existing browser_tui adapter. See docs/GENESIS_BRANDING.md for runtime configuration, legal boundaries, checks and isolated upstream candidate merges.
 
-
 `/workspace/agent-directory` provides administrator publication, role/account assignments, version enable/disable and audit. Its query cache is account-scoped; mutations include current actor ID and server catalog revision, never optimistically confirm grants, and refresh after failure. Ordinary users never fetch administrator data. New strings support en-US and zh-CN.
