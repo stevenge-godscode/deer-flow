@@ -85,7 +85,7 @@ class IdentityDirectoryClient:
         users = set(current.get("users") or [])
         users.add(key) if enabled else users.discard(key)
         result = self.call("update-role", query={"id": self.config.realm + "/" + role, "columns": "users"}, body={"users": sorted(users)})
-        if result != "Affected" and result is not True:
+        if result not in ("Affected", "Unaffected", True):
             raise RuntimeError("Identity role update was not confirmed")
         if set(self.role(role).get("users") or []) != users:
             raise RuntimeError("Identity role verification failed")
@@ -187,6 +187,18 @@ class AgentDirectory:
             raise FileNotFoundError("Published Agent unavailable")
         return snapshot_from_document(record["definition"], name)
 
+    @staticmethod
+    def _validate_skill_compatibility(state):
+        pins = {}
+        for record in state["agents"].values():
+            if not record["enabled"]:
+                continue
+            for name, body in record["skills"].items():
+                digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+                if name in pins and pins[name] != digest:
+                    raise DirectoryConflict("Conflicting published skill versions; disable the previous version before enabling its replacement")
+                pins[name] = digest
+
     def publish(self, name, source_owner, source_name, profile, *, actor, expected_revision):
         name = validate_agent_name(name)
         if profile not in self.config.profiles:
@@ -211,6 +223,7 @@ class AgentDirectory:
                 raise DirectoryConflict("Published version name is already reserved")
             definition = definition_document({**snapshot.config.model_dump(mode="json"), "name": name}, snapshot.soul or "", name)
             state["agents"][name] = {"name": name, "profile": profile, "enabled": True, "definition": definition, "skills": bodies, "source_digest": snapshot.digest}
+            self._validate_skill_compatibility(state)
             return self.commit(state, actor, "publish", {"name": name, "profile": profile, "digest": definition["digest"]})
 
     def set_enabled(self, name, enabled, *, actor, expected_revision):
@@ -218,6 +231,7 @@ class AgentDirectory:
             if name not in state["agents"]:
                 raise ValueError("Unknown published version")
             state["agents"][name]["enabled"] = enabled
+            self._validate_skill_compatibility(state)
             return self.commit(state, actor, "enable" if enabled else "disable", {"name": name})
 
     def set_membership(self, profile, user_id, enabled, *, actor, expected_revision):

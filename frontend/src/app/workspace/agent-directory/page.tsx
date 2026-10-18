@@ -286,10 +286,10 @@ export default function AgentDirectoryPage() {
                 <option value="">
                   {zh ? "选择源版本" : "Select source version"}
                 </option>
-                {data.sources.map((item, index) => (
+                {data.sources.map((item) => (
                   <option
                     key={`${item.owner}/${item.name}`}
-                    value={String(index)}
+                    value={JSON.stringify([item.owner, item.name])}
                   >
                     {item.display_name ?? item.name} ·{" "}
                     {data.accounts.find((a) => a.id === item.owner)?.email ??
@@ -317,12 +317,16 @@ export default function AgentDirectoryPage() {
             <Button
               disabled={
                 busy ||
-                source === "" ||
+                !data.sources.some(
+                  (item) => JSON.stringify([item.owner, item.name]) === source,
+                ) ||
                 !/^[a-z0-9-]{1,100}$/.test(version) ||
                 !activeProfile
               }
               onClick={() => {
-                const selected = data.sources[Number(source)];
+                const selected = data.sources.find(
+                  (item) => JSON.stringify([item.owner, item.name]) === source,
+                );
                 if (selected)
                   mutation.mutate({
                     path: "/versions",

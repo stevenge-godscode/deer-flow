@@ -14,6 +14,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from deerflow.authz.principal import normalize_authz_attributes
+from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
 from deerflow.runtime.user_context import resolve_runtime_user_id
 from deerflow.subagents.batch_runtime import (
     BatchItemInput,
@@ -208,6 +209,7 @@ async def batch_task(
         "user_role": context.get("user_role"),
         "oauth_provider": context.get("oauth_provider"),
         "oauth_id": context.get("oauth_id"),
+        "agent_definition_ref": context.get(AGENT_DEFINITION_CONTEXT_KEY),
         "channel_user_id": context.get("channel_user_id"),
         "is_internal": context.get("is_internal") is True,
         "authz_attributes": normalize_authz_attributes(context.get("authz_attributes")),

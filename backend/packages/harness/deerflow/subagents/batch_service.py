@@ -233,6 +233,7 @@ class SubagentBatchService:
                 user_role=spec.get("user_role"),
                 oauth_provider=spec.get("oauth_provider"),
                 oauth_id=spec.get("oauth_id"),
+                agent_definition_ref=spec.get("agent_definition_ref"),
                 run_id=batch.get("run_id"),
                 channel_user_id=spec.get("channel_user_id"),
                 is_internal=spec.get("is_internal") is True,

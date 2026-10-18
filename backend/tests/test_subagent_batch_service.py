@@ -43,6 +43,7 @@ def _request(**overrides) -> BatchSubmitRequest:
                 "system_prompt": "Work carefully.",
             },
             "parent_model": "model-a",
+            "agent_definition_ref": {"schema": "deerflow.agent-definition-ref/v1", "name": "shared-v1", "digest": "a" * 64},
         },
     }
     values.update(overrides)
@@ -141,6 +142,7 @@ async def test_execute_item_marks_real_running_then_persists_terminal_result(mon
     assert repository.finalized is not None
     assert repository.finalized["succeeded"] is True
     assert repository.finalized["result"] == "done"
+    assert executor_kwargs["agent_definition_ref"] == _request().execution_spec["agent_definition_ref"]
     assert executor_kwargs["execution_capacity"] is execution_capacity
 
 

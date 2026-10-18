@@ -94,4 +94,53 @@ describe("Agent directory account authority", () => {
     expect(screen.queryByText("已授权")).toBeNull();
     client.clear();
   });
+  it("retains source identity across insertion and refuses a removed source", async () => {
+    const a = { owner: "owner-a", name: "a", display_name: "A" };
+    const b = { owner: "owner-b", name: "b", display_name: "B" };
+    const x = { owner: "owner-x", name: "x", display_name: "X" };
+    let sources = [a, b];
+    state.fetch.mockImplementation(
+      (_url: string, options?: { method?: string }) =>
+        Promise.resolve(
+          options?.method
+            ? { ok: true }
+            : {
+                ok: true,
+                json: () => Promise.resolve({ ...directory, sources }),
+              },
+        ),
+    );
+    const client = mount();
+    const select = await screen.findByLabelText("已固化的源智能体");
+    fireEvent.change(select, {
+      target: { value: JSON.stringify([b.owner, b.name]) },
+    });
+    fireEvent.change(
+      screen.getByLabelText("新版本标识（小写字母、数字、连字符）"),
+      { target: { value: "shared-v2" } },
+    );
+    sources = [x, a, b];
+    await client.invalidateQueries();
+    fireEvent.click(screen.getByRole("button", { name: "发布" }));
+    await waitFor(() =>
+      expect(
+        state.fetch.mock.calls.some((call) => call[1]?.method === "POST"),
+      ).toBe(true),
+    );
+    const call = state.fetch.mock.calls.find(
+      (call) => call[1]?.method === "POST",
+    );
+    expect(JSON.parse(call?.[1]?.body)).toMatchObject({
+      source_owner: b.owner,
+      source_name: b.name,
+    });
+    sources = [x, a];
+    await client.invalidateQueries();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "发布" }).hasAttribute("disabled"),
+      ).toBe(true),
+    );
+    client.clear();
+  });
 });

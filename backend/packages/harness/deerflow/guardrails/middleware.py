@@ -15,6 +15,7 @@ from langgraph.types import Command
 from deerflow.authz.outcome import AuthorizationOutcome, put_authorization_outcome
 from deerflow.authz.principal import normalize_authz_attributes
 from deerflow.guardrails.provider import GuardrailDecision, GuardrailProvider, GuardrailReason, GuardrailRequest
+from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
 from deerflow.runtime.events.catalog import MIDDLEWARE_GUARDRAIL_TAG
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class GuardrailMiddleware(AgentMiddleware[AgentState]):
             tool_input=request.tool_call.get("args", {}),
             agent_id=self.passport,
             agent_name=context.get("agent_name"),
+            agent_definition_ref=context.get(AGENT_DEFINITION_CONTEXT_KEY),
             thread_id=context.get("thread_id"),
             is_subagent=bool(context.get("is_subagent")),
             timestamp=datetime.now(UTC).isoformat(),

@@ -241,3 +241,73 @@ def test_directory_skills_preserve_user_and_global_disable(monkeypatch, user_ena
     result = storage.load_skills(enabled_only=False)
     assert result[0].enabled is (user_enabled and global_enabled)
     assert bool(storage.load_skills(enabled_only=True)) is (user_enabled and global_enabled)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["disable", "revoke", "offline"])
+@pytest.mark.parametrize("infrastructure", [False, True])
+async def test_running_child_uses_original_directory_identity(directory, monkeypatch, failure, infrastructure):
+    import deerflow.agent_directory as module
+    from deerflow.authz.adapter import GuardrailAuthorizationAdapter
+    from deerflow.authz.provider import AuthzDecision
+    from deerflow.guardrails.middleware import GuardrailMiddleware
+    from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
+
+    d, identity, private = directory
+    publish(d)
+    d.set_membership("cmdb", "alice", True, actor="admin", expected_revision=1)
+    monkeypatch.setattr(module, "get_directory", lambda: d)
+
+    async def allow_async(request):
+        return AuthzDecision(allow=True)
+
+    provider = SimpleNamespace(authorize=lambda request: AuthzDecision(allow=True), aauthorize=allow_async)
+    adapter = GuardrailAuthorizationAdapter(provider, infrastructure_tool_names=["read_file"] if infrastructure else [])
+    reference = {"schema": "deerflow.agent-definition-ref/v1", "name": "shared-v1", "digest": d.snapshot("shared-v1", "alice").digest}
+    context = {"user_id": "alice", "is_subagent": True, "agent_name": "general-purpose", AGENT_DEFINITION_CONTEXT_KEY: reference}
+    tool_request = SimpleNamespace(tool_call={"name": "read_file", "args": {}, "id": "child-call"}, tool=None)
+    request = GuardrailMiddleware(adapter)._build_request(tool_request, context)
+    assert adapter.evaluate(request).allow
+    if failure == "disable":
+        d.set_enabled("shared-v1", False, actor="admin", expected_revision=3)
+    elif failure == "revoke":
+        identity.members.clear()
+    else:
+        identity.fail = True
+    assert not adapter.evaluate(request).allow
+    assert not (await adapter.aevaluate(request)).allow
+
+
+def test_conflicting_skill_publish_and_enable_are_atomic(directory, monkeypatch, tmp_path):
+    import hashlib
+
+    import deerflow.skills.storage as storage
+    from deerflow.skills.parser import parse_skill_file
+    from deerflow.skills.types import SkillCategory
+
+    d, identity, private = directory
+
+    def source(version):
+        body = "---\nname: managed\ndescription: Read only\n---\n" + version
+        file = tmp_path / version / "SKILL.md"
+        file.parent.mkdir()
+        file.write_text(body, encoding="utf-8")
+        skill = parse_skill_file(file, SkillCategory.CUSTOM, file.parent)
+        monkeypatch.setattr(storage, "get_or_new_user_skill_storage", lambda _: SimpleNamespace(load_skills=lambda **kw: [skill]))
+        private.create(version, {"name": version, "immutable_definition": True, "skills": ["managed"], "skill_body_sha256": {"managed": hashlib.sha256(body.encode()).hexdigest()}}, "instructions", user_id="owner")
+
+    source("v1")
+    d.publish("shared-v1", "owner", "v1", "cmdb", actor="admin", expected_revision=0)
+    source("v2")
+    with pytest.raises(DirectoryConflict, match="skill"):
+        d.publish("shared-v2", "owner", "v2", "cmdb", actor="admin", expected_revision=1)
+    assert d.state()["revision"] == 1
+    assert set(d.state()["agents"]) == {"shared-v1"}
+    d.set_enabled("shared-v1", False, actor="admin", expected_revision=1)
+    d.publish("shared-v2", "owner", "v2", "cmdb", actor="admin", expected_revision=2)
+    with pytest.raises(DirectoryConflict, match="skill"):
+        d.set_enabled("shared-v1", True, actor="admin", expected_revision=3)
+    assert d.state()["revision"] == 3
+    assert d.state()["agents"]["shared-v1"]["enabled"] is False
+    identity.members.add("alice-sub")
+    assert [s.name for s in d.skills("alice")] == ["managed"]

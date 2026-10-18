@@ -120,12 +120,16 @@ class GuardrailAuthorizationAdapter:
 
     @staticmethod
     def _directory_decision(request: GuardrailRequest) -> GuardrailDecision | None:
-        if not request.agent_name:
-            return None
         from deerflow.agent_directory import get_directory
+        from deerflow.config.definition_snapshot import validate_agent_definition_reference
 
+        names = {request.agent_name} if request.agent_name else set()
+        if request.agent_definition_ref is not None:
+            names.add(validate_agent_definition_reference(request.agent_definition_ref)["name"])
+        if not names:
+            return None
         directory = get_directory()
-        if directory is not None and not directory.allowed(request.agent_name, request.user_id):
+        if directory is not None and any(not directory.allowed(name, request.user_id) for name in names):
             return GuardrailDecision(allow=False, reasons=[GuardrailReason(code="authz.agent_directory_revoked")])
         return None
 

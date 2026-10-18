@@ -21,6 +21,7 @@ from deerflow.agents.middlewares.receipt_verification import verify_receipt_cita
 from deerflow.authz.principal import normalize_authz_attributes
 from deerflow.config import get_app_config
 from deerflow.extensions import resolve_run_extensions
+from deerflow.runtime.context_keys import AGENT_DEFINITION_CONTEXT_KEY
 from deerflow.runtime.user_context import resolve_runtime_user_id
 from deerflow.sandbox.security import LOCAL_BASH_SUBAGENT_DISABLED_MESSAGE, is_host_bash_allowed
 from deerflow.subagents import SubagentExecutor, get_available_subagent_names, get_subagent_config
@@ -921,6 +922,7 @@ async def task_tool(
         "channel_user_id": channel_user_id,
         "is_internal": is_internal,
         "authz_attributes": authz_attributes,
+        "agent_definition_ref": parent_context.get(AGENT_DEFINITION_CONTEXT_KEY),
         "deerflow_trace_id": deerflow_trace_id,
         # RFC #4651 PR3: lead-supplied acceptance criteria are handed to the
         # executor, which appends them to the subagent's task HumanMessage as

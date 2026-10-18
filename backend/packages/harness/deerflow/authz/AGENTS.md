@@ -27,3 +27,5 @@ closed. Keep SCOPED_AUTHORIZATION.md and two-stage admission regressions current
 
 
 GuardrailAuthorizationAdapter checks live published-directory access before both ordinary provider checks and infrastructure allow shortcuts. Run admission and worker definition resolution use the same directory-aware AgentStore. Never skip the directory decision on async, resumed or tool-discovery paths; identity or catalog failure must not allow protected execution.
+
+Delegated tool calls retain the original server-authored immutable Agent definition reference, separately from the child specialist name. The live directory gate checks both identities before infrastructure shortcuts; ordinary and durable dispatch must preserve that reference.

@@ -49,3 +49,5 @@ published execution fail closed. Details: `backend/docs/IMMUTABLE_AGENT_DEFINITI
 
 
 Published directory skills are pinned single-file bodies in content-addressed private canonical storage. Only entitled users receive read-only integration-category registry entries; normal thread projections copy them. Their directory/version/role signature participates in projection freshness, so role revocation and version disable revoke later projection reads. Never materialize or copy personal files, integration credentials or projects.
+
+The published directory atomically rejects enabled versions with the same skill name and different pinned bodies. Disable the old version before enabling its replacement so the shared user registry remains valid for all Agents.
