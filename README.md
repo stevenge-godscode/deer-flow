@@ -1922,6 +1922,10 @@ performs a production static-demo build for the fixture-backed workspace routes.
 It measures the unique JavaScript and CSS referenced by representative routes
 and writes the detailed result to `.next/performance-results.json`.
 
+## Personal MCP discovery
+
+An operator may enable `user_auth.discover_with_user` for an authenticated Streamable HTTP MCP server whose upstream independently validates the personal credential on discovery and execution. This keeps its tool catalog within a single verified Gateway run. Existing servers keep their current discovery behavior by default.
+
 ## License
 
 This project is open source and available under the [MIT License](./LICENSE).

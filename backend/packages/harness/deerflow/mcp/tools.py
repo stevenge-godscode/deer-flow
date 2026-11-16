@@ -29,6 +29,7 @@ from deerflow.mcp.tasks.runtime import (
     get_mcp_task_submitter,
     validate_mcp_task_config_snapshot,
 )
+from deerflow.mcp.user_discovery import UserMcpRun, user_mcp_http_client_factory
 from deerflow.reflection import resolve_variable
 from deerflow.runtime.user_context import resolve_runtime_user_id
 from deerflow.tools.mcp_metadata import tag_mcp_routing, tag_mcp_tool
@@ -769,7 +770,7 @@ def _configure_task_tools_for_server(
     return configured
 
 
-async def get_mcp_tools() -> list[BaseTool]:
+async def get_mcp_tools(user_run: UserMcpRun | None = None) -> list[BaseTool]:
     """Get all tools from enabled MCP servers.
 
     Tools using stdio transport are wrapped with persistent-session logic so
@@ -791,9 +792,36 @@ async def get_mcp_tools() -> list[BaseTool]:
     # to always read the latest configuration from disk. This ensures that changes
     # made through the Gateway API (which runs in a separate process) are immediately
     # reflected when initializing MCP tools.
-    extensions_config = ExtensionsConfig.from_file()
+    try:
+        extensions_config = ExtensionsConfig.from_file()
+    except (OSError, ValueError):
+        if user_run is None:
+            raise
+        logger.warning("Skipping personal MCP discovery because its configuration is unavailable")
+        return []
     validate_mcp_task_config_snapshot(extensions_config)
+    selected_servers = {
+        name: server
+        for name, server in extensions_config.get_enabled_mcp_servers().items()
+        if server.discovers_with_user == (user_run is not None)
+    }
+    extensions_config = extensions_config.model_copy(update={"mcp_servers": selected_servers})
     servers_config = build_servers_config(extensions_config)
+    if user_run is not None:
+        # Personal servers cannot use custom interceptors that can rewrite
+        # transport or credential policy outside the authenticated run.
+        if (extensions_config.model_extra or {}).get("mcpInterceptors"):
+            logger.warning("Skipping personal MCP discovery with configured MCP interceptors")
+            return []
+        for name, connection in tuple(servers_config.items()):
+            try:
+                factory = user_mcp_http_client_factory(user_run, name, selected_servers[name])
+            except Exception:
+                logger.warning("Skipping personal MCP server '%s': its user binding is unavailable", name)
+                del servers_config[name]
+                continue
+            connection.pop("headers", None)
+            connection["httpx_client_factory"] = factory
 
     if not servers_config:
         logger.info("No enabled MCP servers configured")
@@ -804,7 +832,7 @@ async def get_mcp_tools() -> list[BaseTool]:
         logger.info(f"Initializing MCP client with {len(servers_config)} server(s)")
 
         # Inject initial OAuth headers for server connections (tool discovery/session init)
-        initial_oauth_headers = await get_initial_oauth_headers(extensions_config)
+        initial_oauth_headers = await get_initial_oauth_headers(extensions_config) if user_run is None else {}
         for server_name, auth_header in initial_oauth_headers.items():
             if server_name not in servers_config:
                 continue
@@ -816,12 +844,14 @@ async def get_mcp_tools() -> list[BaseTool]:
                     {"Authorization": auth_header},
                 )
 
-        tool_interceptors = build_mcp_tool_interceptors(
-            extensions_config,
-            oauth_builder=build_oauth_tool_interceptor,
-            resolver=resolve_variable,
-            target_logger=logger,
-        )
+        tool_interceptors = []
+        if user_run is None:
+            tool_interceptors = build_mcp_tool_interceptors(
+                extensions_config,
+                oauth_builder=build_oauth_tool_interceptor,
+                resolver=resolve_variable,
+                target_logger=logger,
+            )
 
         client = MultiServerMCPClient(
             servers_config,
@@ -878,10 +908,10 @@ async def get_mcp_tools() -> list[BaseTool]:
                         return []
                 return await discovery
             except Exception as e:
-                logger.warning(
-                    f"Skipping MCP server '{server_name}' after tool discovery failed: {e}",
-                    exc_info=True,
-                )
+                if user_run is not None:
+                    logger.warning("Skipping personal MCP server '%s' after discovery failed", server_name)
+                else:
+                    logger.warning("Skipping MCP server '%s' after tool discovery failed: %s", server_name, e, exc_info=True)
                 return []
 
         # Get tools from each server independently so one broken MCP server does
@@ -963,5 +993,8 @@ async def get_mcp_tools() -> list[BaseTool]:
     except McpTaskConfigurationError:
         raise
     except Exception as e:
-        logger.error(f"Failed to load MCP tools: {e}", exc_info=True)
+        if user_run is not None:
+            logger.error("Failed to load personal MCP tools")
+        else:
+            logger.error("Failed to load MCP tools: %s", e, exc_info=True)
         return []
