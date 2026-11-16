@@ -116,6 +116,7 @@ class McpUserScopedAuthConfig(BaseModel):
     """
 
     enabled: bool = Field(default=True, description="Whether user-scoped credential injection is enabled")
+    discover_with_user: bool = Field(default=False, description="Discover tools within each authenticated run using that user’s credential")
     header: str = Field(default="Authorization", description="HTTP header to set with the resolved user credential")
     users: dict[str, str] = Field(
         default_factory=dict,
@@ -278,6 +279,29 @@ class McpServerConfig(BaseModel):
         spelling works, with ``type`` taking precedence when both are provided.
         """
         return normalize_mcp_transport_alias(data)
+
+    @property
+    def discovers_with_user(self) -> bool:
+        return bool(self.user_auth and self.user_auth.discover_with_user)
+
+    @model_validator(mode="after")
+    def _validate_user_discovery(self) -> "McpServerConfig":
+        if not self.discovers_with_user:
+            return self
+        from urllib.parse import urlsplit
+
+        auth = self.user_auth
+        assert auth is not None
+        url = urlsplit(self.url or "")
+        if self.type != "http" or url.scheme not in ("http", "https") or not url.hostname or url.username is not None or url.password is not None or url.query or url.fragment:
+            raise ValueError("Personal MCP discovery requires a fixed Streamable HTTP endpoint")
+        if not auth.enabled or auth.on_missing != "deny" or self.oauth is not None or self.headers_from_context is not None or self.task_toolsets:
+            raise ValueError("Personal MCP discovery requires fail-closed user auth without OAuth, context headers or background tasks")
+        if self.headers and ({name.lower() for name in self.headers} != {"authorization"} or auth.header.lower() == "authorization"):
+            raise ValueError("Personal MCP discovery only permits a separate transport Authorization header")
+        if not self.session_init_timeout or not math.isfinite(self.session_init_timeout) or self.session_init_timeout <= 0:
+            raise ValueError("Personal MCP discovery requires a finite initialization timeout")
+        return self
 
     @model_validator(mode="after")
     def _validate_task_tool_bindings(self) -> "McpServerConfig":

@@ -41,6 +41,7 @@ from deerflow.agents.middlewares.input_sanitization_middleware import neutralize
 from deerflow.config.app_config import AppConfig
 from deerflow.config.database_config import CheckpointChannelMode
 from deerflow.constants import CONVERSATION_READER_CONTEXT_KEY, TOOL_RESULTS_DIRNAME
+from deerflow.mcp.user_discovery import UserMcpRun
 from deerflow.runtime.checkpoint_mode import (
     aensure_checkpoint_mode_compatible,
     inject_checkpoint_mode,
@@ -928,6 +929,7 @@ async def run_agent(
             )
             logger.info("Run %s was cancelled", run_id)
 
+    user_mcp_run = None
     try:
         normalized_stream_modes = normalize_stream_modes(stream_modes)
         requested_modes: set[str] = set(normalized_stream_modes)
@@ -1148,6 +1150,12 @@ async def run_agent(
         if ctx.app_config is not None and _agent_factory_supports_app_config(agent_factory):
             agent_factory_kwargs["app_config"] = ctx.app_config
         from deerflow.extensions import bind_agent_build_extensions
+        from deerflow.mcp.tools import get_mcp_tools
+
+        if runtime_ctx.get("is_internal") is False:
+            user_mcp_run = UserMcpRun.start(record.user_id)
+            if user_mcp_run is not None:
+                user_mcp_run.tools = tuple(await get_mcp_tools(user_run=user_mcp_run))
 
         with bind_agent_build_extensions(extensions):
             # Assemble off-loop: agent construction re-enters
@@ -1460,6 +1468,8 @@ async def run_agent(
             )
 
     finally:
+        if user_mcp_run is not None:
+            user_mcp_run.close()
         try:
             if record.ownership_lost:
                 logger.warning(
